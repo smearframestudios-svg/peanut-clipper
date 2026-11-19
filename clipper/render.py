@@ -39,8 +39,9 @@ def layout_filter(cfg, sw, sh):
 
 def _encoder_args(cfg):
     if cfg.get("render_encoder") == "h264_nvenc":
-        return ["-c:v", "h264_nvenc", "-preset", "p5", "-rc", "vbr", "-cq", "21", "-b:v", "0"]
-    return ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "4"]
+        return ["-c:v", "h264_nvenc", "-preset", "p5", "-profile:v", "high", "-rc", "vbr", "-cq", "21", "-b:v", "0",
+                "-bf", "2", "-b_ref_mode", "disabled"]
+    return ["-c:v", "libx264", "-preset", "veryfast", "-profile:v", "high", "-crf", "20", "-threads", "4"]
 
 
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
@@ -94,7 +95,7 @@ def render_short(src, start, end, out_path, words, cfg, sw, sh):
     cmd = (["ffmpeg", "-v", "error", "-y", "-ss", f"{start:.2f}", "-i", str(Path(src).resolve())] + extra_in +
            ["-t", f"{end - start:.2f}", "-filter_complex", fc, "-map", vmap, "-map", "0:a:0?",
             "-r", fps] + _encoder_args(cfg)) + ["-pix_fmt", "yuv420p",
-           "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", out_path.name]
+           "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2", "-movflags", "+faststart", out_path.name]
     subprocess.run(cmd, check=True, cwd=out_dir)
     poster = out_path.with_suffix(".jpg")
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{min(1.5, (end - start) / 2):.2f}",

@@ -1,5 +1,8 @@
 # What's new
 
+## 1.2.3
+- Premiere-friendly files: exports and Shorts now use the most compatible H.264 settings, a steady frame rate and standard 48 kHz stereo audio, so Premiere imports them without "unsupported compression type" errors.
+
 ## 1.2.2
 - Fixed audio going out of sync in the trim editor and keyword previews. YouTube often sends streams in a format (AV1/VP9) your graphics card can't play smoothly, so the picture fell behind the sound.
 - New downloads now always use the smooth-playing H.264 format.

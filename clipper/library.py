@@ -205,10 +205,13 @@ def export_raw(cfg, job, cid, encoder=None):
         out = folder / f"{stamp} - {_safe(c['title'])} ({n}).mp4"
         n += 1
     enc = cfg.get("render_encoder")
-    v = (["-c:v", "h264_nvenc", "-preset", "p6", "-rc", "vbr", "-cq", "17", "-b:v", "0"] if enc == "h264_nvenc"
-         else ["-c:v", "libx264", "-preset", "fast", "-crf", "16", "-threads", "4"])
+    # Premiere-friendly: plain H.264 High profile, constant frame rate, 48 kHz stereo AAC
+    v = (["-c:v", "h264_nvenc", "-preset", "p6", "-profile:v", "high", "-rc", "vbr", "-cq", "17", "-b:v", "0",
+          "-bf", "2", "-b_ref_mode", "disabled"] if enc == "h264_nvenc"
+         else ["-c:v", "libx264", "-preset", "fast", "-profile:v", "high", "-crf", "16", "-threads", "4"])
+    v += ["-fps_mode", "cfr"]
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{a:.3f}", "-i", str(src), "-t", f"{b - a:.3f}",
-                    "-map", "0:v:0", "-map", "0:a:0?"] + v + ["-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "320k",
+                    "-map", "0:v:0", "-map", "0:a:0?"] + v + ["-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "320k", "-ar", "48000", "-ac", "2",
                     "-movflags", "+faststart", str(out)], check=True)
     if st.get("export_vertical_too") and (f.parent / c["file"]).exists():
         shutil.copy2(f.parent / c["file"], out.with_name(out.stem + " (vertical).mp4"))

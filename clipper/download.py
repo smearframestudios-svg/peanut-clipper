@@ -51,11 +51,12 @@ def fix_sync(src, cfg):
     print(f"  converting {video_codec(src) or 'video'} -> H.264 so it plays in sync and edits smoothly...")
     tmp = src.with_name("source.syncing.mp4")
     gpu = cfg.get("render_encoder") == "h264_nvenc"
-    v = (["-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "19", "-b:v", "0"] if gpu
-         else ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-threads", "4"])
+    v = (["-c:v", "h264_nvenc", "-preset", "p4", "-profile:v", "high", "-rc", "vbr", "-cq", "19", "-b:v", "0",
+          "-bf", "2", "-b_ref_mode", "disabled"] if gpu
+         else ["-c:v", "libx264", "-preset", "veryfast", "-profile:v", "high", "-crf", "18", "-threads", "4"])
     base = ["ffmpeg", "-v", "error", "-y"]
     tail = ["-i", str(src), "-map", "0:v:0", "-map", "0:a:0?"] + v + [
-        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-af", "aresample=async=1:first_pts=0",
+        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", "-af", "aresample=async=1:first_pts=0",
         "-avoid_negative_ts", "make_zero", "-movflags", "+faststart", str(tmp)]
     r = subprocess.run(base + (["-hwaccel", "cuda"] if gpu else []) + tail)
     if r.returncode != 0 and gpu:      # GPU decode not available - decode on CPU, still encode on GPU
