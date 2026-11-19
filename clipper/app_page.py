@@ -63,6 +63,10 @@ ol.steps{margin:6px 0 14px;padding-left:20px;color:#d6d7db}ol.steps li{margin:4p
 .box{position:absolute;border:3px solid;pointer-events:none}.box.av{border-color:#ff4fb3;background:#ff4fb322}.box.gp{border-color:#3fa9ff;background:#3fa9ff22}
 .cal{display:flex;gap:24px;align-items:flex-start}.cal .side{width:290px;display:flex;flex-direction:column;gap:12px}
 canvas#prev{width:270px;height:480px;border-radius:12px;border:1px solid var(--line);background:#000}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{background:var(--panel2);color:var(--mute);border:0;padding:9px 14px;font:inherit;font-weight:600;cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}.seg button.on{background:var(--acc);color:#111}
+.stage{min-height:200px;background:#0c0d0f;border-radius:8px}.nofr{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--mute)}
 .toast{position:fixed;right:24px;bottom:24px;background:var(--panel2);border:1px solid var(--line);border-left:4px solid var(--acc);padding:14px 18px;border-radius:10px;display:none;max-width:420px;z-index:9}
 a{color:var(--blue)}
 .clip .act .btn.ed{flex:0 0 auto;background:var(--panel2)}
@@ -105,7 +109,7 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
     <button data-t="review">Review<span class="badge" id="nPending"></span></button>
     <button data-t="upload">Approved<span class="badge" id="nApproved"></span></button>
     <button data-t="settings">Settings</button>
-    <button data-t="layout">Layout &amp; Banners</button>
+    <button data-t="layout">Layouts &amp; Banners</button>
   </nav>
   <div class="hw"><button class="pill upd" id="pUpd" style="display:none">Update available</button><span class="pill" id="pGpu">CPU</span><span class="pill" id="pAuto">Auto: off</span>
     <button class="pill" id="quit" title="Close Peanut Clipper">Quit</button></div>
@@ -114,6 +118,8 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
 
 <section id="make" class="on">
   <h2>Make Shorts</h2><p class="sub">Paste a finished stream and the app finds the best moments, cuts them into Shorts, and puts them in Review.</p>
+  <div class="row" style="margin:-8px 0 16px"><span class="mute">Layout for new Shorts</span><select id="mkLayout" style="min-width:220px"></select>
+    <button class="link" onclick="show('layout')">edit layouts</button></div>
   <div class="card">
     <h3>From a stream</h3>
     <div class="row">
@@ -261,28 +267,38 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
 </section>
 
 <section id="layout">
-  <h2>Layout</h2><p class="sub">Put the peanut on top and the gameplay underneath. You only do this once (again if his stream overlay changes).</p>
-  <div class="card"><h3>1. Grab a frame from any stream</h3>
-    <div class="row"><input class="big" type="text" id="fUrl" placeholder="Paste a stream link">
+  <h2>Layouts &amp; Banners</h2><p class="sub">Save a layout for each kind of stream (his cam sits in different spots in different games). Pick one when you make Shorts, or switch a single Short in the editor. Changes save by themselves.</p>
+  <div class="card">
+    <div class="row"><b>Layout</b><select id="lySel" style="min-width:220px"></select><span class="pill good" id="lyDef">default</span>
+      <span style="margin-left:auto" class="row"><button class="btn" id="lyNew">+ New</button><button class="btn" id="lyDup">Duplicate</button><button class="btn" id="lyRen">Rename</button><button class="btn" id="lyMkDef">Make default</button><button class="btn no" id="lyDel">Delete</button></span></div>
+  </div>
+  <div class="card"><h3>Frame to design on</h3>
+    <div class="row"><input class="big" type="text" id="fUrl" placeholder="Paste a stream link (the kind of stream this layout is for)">
       <span class="tiny mute">at</span><input type="text" class="small" id="fAt" value="1:00:00">
       <button class="btn main" id="goFrame">Grab frame</button></div>
   </div>
-  <div class="card" id="calCard" style="display:none"><h3>2. Drag a box around each part</h3>
+  <div class="card" id="calCard">
+    <div class="row" style="margin-bottom:14px"><h3 style="margin:0" id="lyTitle">Layout</h3>
+      <span style="margin-left:auto" class="seg" id="lyMode"><button data-m="stack">Peanut over gameplay</button><button data-m="single">Gameplay only</button><button data-m="blurfit">Whole stream</button></span></div>
     <div class="cal">
-      <div class="stage" id="stage"><img id="cimg" draggable="false"><div class="box av" id="b_avatar"></div><div class="box gp" id="b_gameplay"></div></div>
+      <div class="stage" id="stage"><img id="cimg" draggable="false"><div class="nofr" id="noFrame">Grab a frame above to draw the boxes</div>
+        <div class="box av" id="b_avatar"></div><div class="box gp" id="b_gameplay"></div></div>
       <div class="side">
-        <label class="toggle"><input type="radio" name="which" value="avatar" checked> <b style="color:#ff4fb3">Peanut box</b> (top)</label>
-        <label class="toggle"><input type="radio" name="which" value="gameplay"> <b style="color:#3fa9ff">Gameplay box</b> (bottom)</label>
-        <label class="tiny mute">Peanut panel height <input type="range" id="th" min="480" max="1100" step="10" style="width:100%"></label>
+        <div id="whichBox">
+          <label class="toggle"><input type="radio" name="which" value="avatar" checked> <b style="color:#ff4fb3">Peanut box</b> <span class="tiny mute">(top)</span></label>
+          <label class="toggle"><input type="radio" name="which" value="gameplay"> <b style="color:#3fa9ff" id="gpLabel">Gameplay box</b> <span class="tiny mute" id="gpHint">(bottom)</span></label>
+          <p class="tiny mute" style="margin:6px 0 0">Drag on the frame to draw the selected box. Drag inside it to move it.</p>
+          <label class="tiny mute">Zoom <input type="range" id="zoom" min="5" max="100" step="1" style="width:100%"></label>
+        </div>
+        <label class="tiny mute" id="thWrap">Peanut panel height <input type="range" id="th" min="480" max="1300" step="10" style="width:100%"></label>
         <canvas id="prev" width="540" height="960"></canvas>
-        <button class="btn main" id="saveLayout">Save this layout</button>
-        <button class="btn" id="useBlur">Use whole-screen layout instead</button>
+        <div><div class="tiny mute" style="margin-bottom:4px">Banners on this layout</div><div id="lyBanners" class="tiny"></div></div>
         <span id="layMsg" class="tiny mute"></span>
       </div>
     </div>
   </div>
-  <div class="card"><h3>Banners</h3>
-    <p class="tiny mute" style="margin:0 0 12px">Add your banners as <b>transparent PNGs</b> (or a video with transparency for animated ones). Easiest: in Premiere, turn off every track except your banners, export one frame of the 1080&times;1920 sequence as a PNG with transparency, and choose <b>Full frame</b> here - everything lands exactly where it is in your template. They show in the preview above and go on every new Short.</p>
+  <div class="card"><h3>Banner files</h3>
+    <p class="tiny mute" style="margin:0 0 12px">Add your banners as <b>transparent PNGs</b> (or a video with transparency for animated ones). Easiest: in Premiere, turn off every track except your banners, export one frame of the 1080&times;1920 sequence as a PNG with transparency, and choose <b>Full frame</b>. Tick which banners each layout uses above.</p>
     <div id="ovList"></div>
     <div class="row"><input type="file" id="ovFile" accept=".png,.webp,.mov,.webm,.mp4"><span id="ovMsg" class="tiny mute"></span></div>
   </div>
@@ -306,7 +322,8 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
     <div class="ed-side"><div class="tiny mute" style="margin-bottom:6px">Current Short</div><video id="edShort" controls preload="none"></video></div>
   </div>
   <div class="ed-foot"><span class="tiny mute" id="edNote">Drag the yellow handles, or click the bar to jump there. Shorts can be up to 3 minutes.</span>
-    <button class="btn main" style="margin-left:auto" id="edSave">Update Short</button></div>
+    <span style="margin-left:auto" class="row"><span class="tiny mute">Layout</span><select id="edLayout"></select>
+    <button class="btn main" id="edSave">Update Short</button></span></div>
 </div></div>
 </main>
 <div class="toast" id="toast"></div>
@@ -375,9 +392,9 @@ function drawJob(j){
 $('logBtn').onclick=()=>{logOpen=!logOpen;$('log').style.display=logOpen?'block':'none';$('logBtn').textContent=logOpen?'Hide details':'Show details';if(S)drawJob(S.job)};
 $('cancel').onclick=()=>api('/api/cancel',{}).then(poll);
 $('part').onchange=e=>$('partBox').style.display=e.target.checked?'inline-flex':'none';
-$('go').onclick=async()=>{const body={kind:'vod',url:$('url').value};if($('part').checked){body.from=$('from').value;body.to=$('to').value}
+$('go').onclick=async()=>{const body={kind:'vod',url:$('url').value,layout:$('mkLayout').value};if($('part').checked){body.from=$('from').value;body.to=$('to').value}
   await api('/api/run',body);lastJobKey='running';poll()};
-$('goTwitch').onclick=async()=>{await api('/api/run',{kind:'clips'});lastJobKey='running';poll()};
+$('goTwitch').onclick=async()=>{await api('/api/run',{kind:'clips',layout:$('mkLayout').value});lastJobKey='running';poll()};
 $('goAuto').onclick=async()=>{await api('/api/run',{kind:'auto'});lastJobKey='running';poll()};
 
 // ---------- updates / quit ----------
@@ -403,7 +420,7 @@ $('quit').onclick=async()=>{if(S&&S.job&&S.job.running&&!confirm('A job is still
 let KW=null, pendingPreview=null;
 $('kwPart').onchange=e=>$('kwPartBox').style.display=e.target.checked?'inline-flex':'none';
 $('kwGo').onclick=async()=>{const url=($('kwUrl').value||$('url').value).trim();
-  const body={kind:'search',url,words:$('kwWords').value,chat:$('kwChat').checked,exact:!$('kwSimilar').checked};
+  const body={kind:'search',url,words:$('kwWords').value,chat:$('kwChat').checked,exact:!$('kwSimilar').checked,layout:$('mkLayout').value};
   if($('kwPart').checked){body.from=$('kwFrom').value;body.to=$('kwTo').value}
   await api('/api/run',body);lastJobKey='running';poll()};
 async function loadSearches(openNewest){
@@ -431,7 +448,7 @@ async function openSearch(sid,keepPlayer){
       if(!v.src.endsWith('/search_source/'+KW.sid)){v.preload='auto';v.src='/search_source/'+KW.sid;v.load()}
       const go=()=>{v.currentTime=Math.max(0,m.t-8);v.play()};if(v.readyState>0)go();else v.addEventListener('loadedmetadata',go,{once:true});
       $('kwPlayer').scrollIntoView({behavior:'smooth',block:'center'});return}
-    await api('/api/run',{kind:'fromsearch',sid:KW.sid,idx:m.i,export:b.dataset.a==='export'});lastJobKey='running';poll()});
+    await api('/api/run',{kind:'fromsearch',sid:KW.sid,idx:m.i,export:b.dataset.a==='export',layout:$('mkLayout').value});lastJobKey='running';poll()});
 }
 
 // ---------- review ----------
@@ -486,35 +503,99 @@ $('save').onclick=async()=>{const body={};
   const r=await api('/api/settings',body);$('saveMsg').textContent=r.message;await poll();fillSettings()};
 $('hwTest').onclick=async()=>{await api('/api/run',{kind:'hwtest'});lastJobKey='running';show('make');poll()};
 
-// ---------- layout ----------
-let L=null;
+// ---------- layouts ----------
+let LY=null, L=null, lyTimer=null;
+const clone=o=>JSON.parse(JSON.stringify(o));
+const newId=()=>'l'+Date.now().toString(36);
 async function initLayout(fresh){
   if(!S||fresh)await poll();
-  if(!S.has_frame){$('calCard').style.display='none';return}
-  L=JSON.parse(JSON.stringify(S.layout));$('th').value=L.top_height;
-  $('calCard').style.display='block';$('cimg').src='/calib.jpg?'+Date.now();
+  if(!LY||fresh===true)LY=clone(S.layouts);
+  if(!L||!LY.layouts.find(x=>x.id===L.id))L=LY.layouts.find(x=>x.id===LY.default)||LY.layouts[0];
+  else L=LY.layouts.find(x=>x.id===L.id);
+  $('lySel').innerHTML=LY.layouts.map(l=>`<option value="${l.id}">${esc(l.name)}${l.id===LY.default?' (default)':''}</option>`).join('');
+  $('lySel').value=L.id;$('lyDef').style.display=L.id===LY.default?'':'none';$('lyTitle').textContent=L.name;
+  document.querySelectorAll('#lyMode button').forEach(b=>b.classList.toggle('on',b.dataset.m===L.mode));
+  $('th').value=L.top_height;
+  const hasFrame=S.has_frame;$('noFrame').style.display=hasFrame?'none':'flex';
+  if(hasFrame&&(!$('cimg').src||fresh))$('cimg').src='/calib.jpg?'+Date.now();
+  if(!hasFrame)$('cimg').removeAttribute('src');
+  const m=L.mode;$('whichBox').style.display=m==='blurfit'?'none':'block';$('thWrap').style.display=m==='stack'?'block':'none';
+  document.querySelector('[name=which][value=avatar]').parentElement.style.display=m==='stack'?'':'none';
+  if(m==='single')document.querySelector('[name=which][value=gameplay]').checked=true;
+  $('gpLabel').textContent=m==='single'?'Frame box':'Gameplay box';$('gpHint').textContent=m==='single'?'(fills the whole Short)':'(bottom)';
+  renderLayoutBanners();syncZoom();drawCal();
+  updateLayoutMenus();
 }
-$('goFrame').onclick=async()=>{await api('/api/run',{kind:'frame',url:$('fUrl').value,at:$('fAt').value});lastJobKey='running';toast('Grabbing a frame... the boxes appear here when it\'s ready.');poll()};
+function updateLayoutMenus(){
+  if(!S)return;const src=LY||S.layouts;
+  const opts=src.layouts.map(l=>`<option value="${l.id}">${esc(l.name)}${l.id===src.default?' (default)':''}</option>`).join('');
+  for(const id of ['mkLayout','edLayout']){const el=$(id);if(!el)continue;const v=el.value;el.innerHTML=opts;
+    el.value=src.layouts.some(l=>l.id===v)?v:src.default}
+}
+function saveLY(msg){clearTimeout(lyTimer);$('layMsg').textContent='Saving...';
+  lyTimer=setTimeout(async()=>{await api('/api/layouts',LY);$('layMsg').textContent=msg||'Saved.';S.layouts=clone(LY);updateLayoutMenus()},500)}
+$('lySel').onchange=()=>{L=LY.layouts.find(x=>x.id===$('lySel').value);initLayout()};
+document.querySelectorAll('#lyMode button').forEach(b=>b.onclick=()=>{L.mode=b.dataset.m;initLayout();saveLY()});
+$('lyNew').onclick=()=>{const name=prompt('Name for the new layout (e.g. "GTA", "ARC Raiders"):');if(!name)return;
+  L={id:newId(),name:name.trim().slice(0,40),mode:'stack',top_height:760,banners:null,
+     avatar:{x:.7,y:.5,w:.3,h:.5},gameplay:{x:.15,y:0,w:.7,h:1}};LY.layouts.push(L);initLayout();saveLY('Created "'+L.name+'".')};
+$('lyDup').onclick=()=>{const c=clone(L);c.id=newId();c.name=(L.name+' copy').slice(0,40);LY.layouts.push(c);L=c;initLayout();saveLY('Duplicated.')};
+$('lyRen').onclick=()=>{const name=prompt('New name:',L.name);if(!name)return;L.name=name.trim().slice(0,40);initLayout();saveLY('Renamed.')};
+$('lyMkDef').onclick=()=>{LY.default=L.id;initLayout();saveLY('"'+L.name+'" is now the default.')};
+$('lyDel').onclick=()=>{if(LY.layouts.length<2){toast('You need at least one layout.');return}
+  if(!confirm('Delete the layout "'+L.name+'"? Shorts that used it switch to the default next time you update them.'))return;
+  LY.layouts=LY.layouts.filter(x=>x.id!==L.id);if(LY.default===L.id)LY.default=LY.layouts[0].id;L=null;initLayout();saveLY('Deleted.')};
+$('goFrame').onclick=async()=>{await api('/api/run',{kind:'frame',url:$('fUrl').value,at:$('fAt').value});lastJobKey='running';toast('Grabbing a frame... it appears here when it\'s ready.');poll()};
+function renderLayoutBanners(){
+  const list=(S&&S.settings.overlays)||[];const box=$('lyBanners');
+  if(!list.length){box.innerHTML='<span class="mute">No banner files yet (add them below).</span>';return}
+  const on=f=>L.banners==null?(list.find(o=>o.file===f).enabled!==false):L.banners.includes(f);
+  box.innerHTML=list.map(o=>`<label class="toggle" style="margin:3px 0"><input type="checkbox" data-f="${esc(o.file)}" ${on(o.file)?'checked':''}> ${esc(o.file)}</label>`).join('');
+  box.querySelectorAll('input').forEach(c=>c.onchange=()=>{L.banners=[...box.querySelectorAll('input:checked')].map(x=>x.dataset.f);drawCal();saveLY()});
+}
+const sel=()=>document.querySelector('[name=which]:checked').value;
+document.querySelectorAll('[name=which]').forEach(r=>r.onchange=()=>syncZoom());
+function syncZoom(){if(!L)return;const b=L[sel()];$('zoom').value=Math.round(b.w*100)}
+$('zoom').oninput=()=>{const k=sel(),b=L[k],cx=b.x+b.w/2,cy=b.y+b.h/2,ar=b.h/b.w;
+  let w=Math.min(1,+$('zoom').value/100),h=Math.min(1,w*ar);w=h/ar;
+  L[k]={w,h,x:Math.min(1-w,Math.max(0,cx-w/2)),y:Math.min(1-h,Math.max(0,cy-h/2))};drawCal()};
+$('zoom').onchange=()=>saveLY();$('th').oninput=()=>{L.top_height=+$('th').value;drawCal()};$('th').onchange=()=>saveLY();
 function drawCal(){
-  if(!L)return;for(const k of ['avatar','gameplay']){const b=L[k],e=$('b_'+k);
+  if(!L)return;const m=L.mode;
+  for(const k of ['avatar','gameplay']){const b=L[k],e=$('b_'+k);
+    const show=S&&S.has_frame&&(k==='gameplay'?m!=='blurfit':m==='stack');e.style.display=show?'block':'none';
     e.style.left=b.x*100+'%';e.style.top=b.y*100+'%';e.style.width=b.w*100+'%';e.style.height=b.h*100+'%'}
-  const img=$('cimg'),c=$('prev'),x=c.getContext('2d'),W=img.naturalWidth,H=img.naturalHeight;if(!W)return;
-  const top=$('th').value/1920*960;x.fillStyle='#000';x.fillRect(0,0,540,960);
-  const part=(b,dy,dh)=>{let sx=b.x*W,sy=b.y*H,sw=b.w*W,sh=b.h*H;const r=540/dh;
+  const img=$('cimg'),c=$('prev'),x=c.getContext('2d'),W=img.naturalWidth,H=img.naturalHeight;
+  x.fillStyle='#1a1b1f';x.fillRect(0,0,540,960);x.filter='none';
+  const cover=(b,dy,dh)=>{let sx=b.x*W,sy=b.y*H,sw=b.w*W,sh=b.h*H;const r=540/dh;
     if(sw/sh>r){const nw=sh*r;sx+=(sw-nw)/2;sw=nw}else{const nh=sw/r;sy+=(sh-nh)/2;sh=nh}
     x.drawImage(img,sx,sy,sw,sh,0,dy,540,dh)};
-  part(L.avatar,0,top);part(L.gameplay,top,960-top);
+  const top=L.top_height/1920*960;
+  if(W&&img.src){
+    if(m==='stack'){cover(L.avatar,0,top);cover(L.gameplay,top,960-top)}
+    else if(m==='single'){cover(L.gameplay,0,960)}
+    else{x.filter='blur(12px) brightness(0.8)';cover({x:0,y:0,w:1,h:1},0,960);x.filter='none';const h=540*H/W;x.drawImage(img,0,(960-h)/2,540,h)}
+  }else{x.fillStyle='#6d717b';x.font='20px Segoe UI';x.textAlign='center';x.fillText('Preview appears here',270,480)}
+  const seam=m==='stack'?top:m==='single'?480:(W?(960-540*H/W)/2:480);
+  const list=(S&&S.settings.overlays)||[];
+  for(const o of list){const on=L.banners==null?o.enabled!==false:L.banners.includes(o.file);
+    if(!on||!/\.(png|webp|jpe?g)$/i.test(o.file))continue;
+    let im=ovImgs[o.file];if(!im){im=ovImgs[o.file]=new Image();im.onload=()=>drawCal();im.src='/overlay/'+encodeURIComponent(o.file);continue}
+    if(!im.complete||!im.naturalWidth)continue;
+    if(o.position==='full'){x.drawImage(im,0,0,540,960);continue}
+    const h=540*im.naturalHeight/im.naturalWidth,off=(o.offset||0)/2;
+    x.drawImage(im,0,(o.position==='top'?0:o.position==='bottom'?960-h:seam-h/2)+off,540,h)}
 }
-$('cimg').onload=()=>drawCal();$('th').oninput=()=>drawCal();
+$('cimg').onload=()=>drawCal();
 let drag=null;const stage=$('stage');
 const pos=e=>{const r=stage.getBoundingClientRect();return[Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))]};
-stage.onmousedown=e=>{drag=pos(e);e.preventDefault()};
-window.addEventListener('mousemove',e=>{if(!drag)return;const p=pos(e),k=document.querySelector('[name=which]:checked').value;
-  L[k]={x:Math.min(drag[0],p[0]),y:Math.min(drag[1],p[1]),w:Math.max(.02,Math.abs(p[0]-drag[0])),h:Math.max(.02,Math.abs(p[1]-drag[1]))};drawCal()});
-window.addEventListener('mouseup',()=>{drag=null});
-async function saveLayout(mode){L.mode=mode;L.top_height=+$('th').value;await api('/api/layout',L);
-  $('layMsg').textContent=mode==='stack'?'Saved. New Shorts will use this layout.':'Saved. New Shorts will show the whole stream.';poll()}
-$('saveLayout').onclick=()=>saveLayout('stack');$('useBlur').onclick=()=>saveLayout('blurfit');
+stage.onmousedown=e=>{if(!S||!S.has_frame||L.mode==='blurfit')return;e.preventDefault();const p=pos(e),k=sel(),b=L[k];
+  if(p[0]>=b.x&&p[0]<=b.x+b.w&&p[1]>=b.y&&p[1]<=b.y+b.h)drag={move:true,k,dx:p[0]-b.x,dy:p[1]-b.y};else drag={move:false,k,s:p}};
+window.addEventListener('mousemove',e=>{if(!drag)return;const p=pos(e),b=L[drag.k];
+  if(drag.move){b.x=Math.min(1-b.w,Math.max(0,p[0]-drag.dx));b.y=Math.min(1-b.h,Math.max(0,p[1]-drag.dy))}
+  else L[drag.k]={x:Math.min(drag.s[0],p[0]),y:Math.min(drag.s[1],p[1]),w:Math.max(.03,Math.abs(p[0]-drag.s[0])),h:Math.max(.03,Math.abs(p[1]-drag.s[1]))};
+  drawCal()});
+window.addEventListener('mouseup',()=>{if(drag){drag=null;syncZoom();saveLY()}});
 
 // ---------- trim editor ----------
 let E=null, edSaving=false, tlDrag=null, pendingEdit=null;
@@ -525,7 +606,8 @@ async function openEditor(c){
   if(info.needs_sync){pendingEdit=c;await api('/api/run',{kind:'syncfix',job:c.job,id:c.id});lastJobKey='running';
     toast('Converting this stream so it plays in sync (one time, a few minutes). The editor opens by itself when it\'s done.');poll();return}
   E={job:c.job,id:c.id,dur:info.duration,a:info.start,b:info.start+(info.end-info.start),oa:info.start,ob:info.end,pad:60};
-  E.b=info.end;setView();
+  E.b=info.end;setView();updateLayoutMenus();
+  const src=(LY||S.layouts);$('edLayout').value=src.layouts.some(l=>l.id===info.layout)?info.layout:src.default;
   $('edTitle').textContent=c.title;$('edSrc').src=`/source/${c.job}/${c.id}`;
   $('edShort').src=`/media/${c.job}/${info.file}`;$('edShort').poster=`/media/${c.job}/${info.poster}`;
   $('ed').classList.add('on');
@@ -568,9 +650,9 @@ $('edReset').onclick=()=>{E.a=E.oa;E.b=E.ob;E.pad=60;setView();drawTL();$('edSrc
 $('edSave').onclick=async()=>{if(!E||edSaving)return;
   if(E.b-E.a>180&&!confirm('This is over 3 minutes, which is longer than YouTube allows for a Short. Make it anyway?'))return;
   edSaving=true;$('edSave').disabled=true;$('edSave').textContent='Updating...';$('edSrc').pause();
-  try{await api('/api/run',{kind:'rerender',job:E.job,id:E.id,start:E.a,end:E.b});lastJobKey='running';poll()}catch(e){edSaving=false;$('edSave').disabled=false;$('edSave').textContent='Update Short'}};
+  try{await api('/api/run',{kind:'rerender',job:E.job,id:E.id,start:E.a,end:E.b,layout:$('edLayout').value});lastJobKey='running';poll()}catch(e){edSaving=false;$('edSave').disabled=false;$('edSave').textContent='Update Short'}};
 
-// ---------- banners ----------
+// ---------- banner files ----------
 const ovImgs={};
 function renderOverlays(){
   const list=(S&&S.settings.overlays)||[];const box=$('ovList');
@@ -579,28 +661,19 @@ function renderOverlays(){
     d.innerHTML=`${isImg?`<img src="/overlay/${encodeURIComponent(o.file)}">`:'<span class="pill">video</span>'}<span class="nm">${esc(o.file)}</span>
       <select>${[['full','Full frame (1080x1920)'],['top','Top'],['seam','Between peanut & gameplay'],['bottom','Bottom']].map(([v,t])=>`<option value="${v}" ${o.position===v?'selected':''}>${t}</option>`).join('')}</select>
       <label class="tiny mute">nudge px <input type="number" class="small" style="width:80px" value="${o.offset||0}"></label>
-      <label class="toggle tiny"><input type="checkbox" ${o.enabled!==false?'checked':''}> on</label>
       <button class="btn no" style="padding:7px 12px">Remove</button>`;
-    const [sel]=d.getElementsByTagName('select');const [num,chk]=d.getElementsByTagName('input');
+    const [sel]=d.getElementsByTagName('select');const [num]=d.getElementsByTagName('input');
     sel.onchange=()=>{o.position=sel.value;saveOv(list)};num.onchange=()=>{o.offset=parseInt(num.value||'0');saveOv(list)};
-    chk.onchange=()=>{o.enabled=chk.checked;saveOv(list)};d.querySelector('.no').onclick=()=>{list.splice(i,1);saveOv(list)};
+    d.querySelector('.no').onclick=()=>{list.splice(i,1);
+      for(const l of (LY||S.layouts).layouts)if(l.banners)l.banners=l.banners.filter(f=>f!==o.file);saveOv(list)};
     box.appendChild(d)});
-  drawCal();
+  if(L){renderLayoutBanners();drawCal()}
 }
-async function saveOv(list){await api('/api/overlays',{overlays:list});await poll();renderOverlays()}
+async function saveOv(list){await api('/api/overlays',{overlays:list});if(LY)await api('/api/layouts',LY);await poll();renderOverlays()}
 $('ovFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;$('ovMsg').textContent='Uploading...';
   const r=await fetch('/api/overlay_upload?name='+encodeURIComponent(f.name),{method:'POST',body:f});
   $('ovMsg').textContent=r.ok?'Added.':'Upload failed.';e.target.value='';await poll();renderOverlays()};
-const _drawCal=drawCal;
-drawCal=function(){_drawCal();if(!L)return;const c=$('prev'),x=c.getContext('2d');const top=$('th').value/1920*960;
-  for(const o of ((S&&S.settings.overlays)||[])){if(o.enabled===false||!/\.(png|webp|jpe?g)$/i.test(o.file))continue;
-    let im=ovImgs[o.file];if(!im){im=ovImgs[o.file]=new Image();im.onload=()=>drawCal();im.src='/overlay/'+encodeURIComponent(o.file);continue}
-    if(!im.complete||!im.naturalWidth)continue;
-    if(o.position==='full'){x.drawImage(im,0,0,540,960);continue}
-    const h=540*im.naturalHeight/im.naturalWidth,off=(o.offset||0)/2;
-    const y=o.position==='top'?0:o.position==='bottom'?960-h:top-h/2;
-    x.drawImage(im,0,y+off,540,h)}};
 const _show=show;show=function(t){_show(t);if(t==='layout')setTimeout(renderOverlays,300)};
 
-poll().then(()=>{if(S)$('kwCpu').style.display=S.hw.gpu_speech&&S.settings.use_gpu?'none':'block'});loadSearches();setInterval(poll,1500);
+poll().then(()=>{if(S){$('kwCpu').style.display=S.hw.gpu_speech&&S.settings.use_gpu?'none':'block';updateLayoutMenus()}});loadSearches();setInterval(poll,1500);
 </script></body></html>"""

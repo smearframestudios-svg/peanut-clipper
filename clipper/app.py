@@ -150,7 +150,7 @@ def app_state():
         "default_export": str(ROOT / "exports"),
         "update": UPDATE,
         "last_made": load_json(cfg["paths"]["work_dir"] / "last_made.json"),
-        "layout": {k: cfg["layout"][k] for k in ("mode", "avatar", "gameplay", "top_height")},
+        "layouts": cfg["layouts"],
     }
 
 
@@ -311,7 +311,7 @@ def make_handler():
                     url = (body.get("url") or "").strip()
                     if not url:
                         return self._send(400, {"error": "Paste a stream link first."})
-                    args = ["vod", url]
+                    args = ["vod", url] + (["--layout", body["layout"]] if body.get("layout") else [])
                     if body.get("from"):
                         args += ["--from", body["from"]]
                     if body.get("to"):
@@ -320,7 +320,8 @@ def make_handler():
                     a_, b_ = parse_hms(body.get("from") or None), parse_hms(body.get("to") or None)
                     section = (b_ - (a_ or 0)) if b_ else None
                 elif kind == "clips":
-                    args, label = ["clips"], "Getting today's top Twitch clips..."
+                    args, label = ["clips"] + (["--layout", body["layout"]] if body.get("layout") else []), \
+                        "Getting today's top Twitch clips..."
                 elif kind == "upload":
                     args, label = ["upload"], "Uploading to YouTube..."
                 elif kind == "auto":
@@ -331,7 +332,7 @@ def make_handler():
                     url = (body.get("url") or "").strip()
                     if not url or not (body.get("words") or "").strip():
                         return self._send(400, {"error": "Paste a stream link and type the words to look for."})
-                    args = ["search", url, "--words", body["words"]]
+                    args = ["search", url, "--words", body["words"]] + (["--layout", body["layout"]] if body.get("layout") else [])
                     if body.get("from"):
                         args += ["--from", body["from"]]
                     if body.get("to"):
@@ -344,13 +345,15 @@ def make_handler():
                     a_, b_ = parse_hms(body.get("from") or None), parse_hms(body.get("to") or None)
                     section = (b_ - (a_ or 0)) if b_ else None
                 elif kind == "fromsearch":
-                    args = ["fromsearch", body["sid"], str(int(body["idx"]))] + (["--export"] if body.get("export") else [])
+                    args = ["fromsearch", body["sid"], str(int(body["idx"]))] + (["--export"] if body.get("export") else []) + \
+                        (["--layout", body["layout"]] if body.get("layout") else [])
                     label = "Exporting for Premiere..." if body.get("export") else "Making the Short..."
                 elif kind == "syncfix":
                     args = ["syncfix", body["sid"], "--search"] if body.get("sid") else ["syncfix", body["job"], body["id"]]
                     label = "Converting the stream so it plays smoothly (one time, a few minutes)..."
                 elif kind == "rerender":
-                    args = ["rerender", body["job"], body["id"], str(float(body["start"])), str(float(body["end"]))]
+                    args = ["rerender", body["job"], body["id"], str(float(body["start"])), str(float(body["end"]))] + \
+                        (["--layout", body["layout"]] if body.get("layout") else [])
                     label = "Re-cutting the Short..."
                 elif kind == "export":
                     args = ["export", body["job"], body["id"]] if body.get("id") else ["export", "--all"]
@@ -401,9 +404,21 @@ def make_handler():
                         f.unlink(missing_ok=True)
                 save_settings({"overlays": ovs})
                 return self._send(200, {"ok": True})
-            if p == "/api/layout":
-                keep = {k: body[k] for k in ("mode", "avatar", "gameplay", "top_height")}
-                save_json(DATA / "layout.json", keep)
+            if p == "/api/layouts":
+                from .util import save_layouts
+                clean = []
+                for l in body.get("layouts", []):
+                    item = {"id": str(l["id"])[:40], "name": (str(l.get("name") or "Layout").strip() or "Layout")[:40],
+                            "mode": l.get("mode") if l.get("mode") in ("stack", "single", "blurfit") else "blurfit",
+                            "top_height": int(l.get("top_height", 760)), "banners": l.get("banners")}
+                    for k in ("avatar", "gameplay"):
+                        b = l.get(k) or {}
+                        item[k] = {q: max(0.0, min(1.0, float(b.get(q, 0.5)))) for q in ("x", "y", "w", "h")}
+                    clean.append(item)
+                try:
+                    save_layouts({"default": body.get("default"), "layouts": clean})
+                except ValueError as e:
+                    return self._send(400, {"error": str(e)})
                 return self._send(200, {"ok": True})
             self._send(404, {"error": "not found"})
 

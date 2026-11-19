@@ -91,13 +91,63 @@ def save_settings(new):
     return s
 
 
+LAYOUT_KEYS = ("mode", "avatar", "gameplay", "top_height", "banners")
+
+
+def load_layouts(base=None):
+    """Saved layouts: {"default": id, "layouts": [{id, name, mode, avatar, gameplay, top_height, banners}]}.
+    banners = list of banner file names for that layout, or None for "all banners that are on"."""
+    DATA.mkdir(exist_ok=True)
+    f = DATA / "layouts.json"
+    data = load_json(f)
+    if data and data.get("layouts"):
+        return data
+    base = dict(base or {"mode": "blurfit", "top_height": 760,
+                         "avatar": {"x": 0.7, "y": 0.5, "w": 0.3, "h": 0.5},
+                         "gameplay": {"x": 0.15, "y": 0.0, "w": 0.7, "h": 1.0}})
+    old = load_json(DATA / "layout.json")       # from before saved layouts existed
+    if old:
+        base.update(old)
+    main = {"id": "main", "name": "Main", "banners": None}
+    main.update({k: base[k] for k in ("mode", "avatar", "gameplay", "top_height") if k in base})
+    data = {"default": "main", "layouts": [main]}
+    save_json(f, data)
+    return data
+
+
+def save_layouts(data):
+    ids = [l["id"] for l in data.get("layouts", [])]
+    if not ids:
+        raise ValueError("at least one layout is needed")
+    if data.get("default") not in ids:
+        data["default"] = ids[0]
+    save_json(DATA / "layouts.json", data)
+
+
+def get_layout(cfg, lid=None):
+    lays = cfg["layouts"]["layouts"]
+    want = lid or cfg["layouts"]["default"]
+    return next((l for l in lays if l["id"] == want), None) or \
+        next((l for l in lays if l["id"] == cfg["layouts"]["default"]), lays[0])
+
+
+def apply_layout(cfg, lid=None):
+    """Point cfg["layout"] (what the renderer reads) at a saved layout. Returns its id."""
+    lay = get_layout(cfg, lid)
+    merged = dict(cfg["layout_base"])
+    merged.update({k: lay[k] for k in LAYOUT_KEYS if k in lay})
+    merged["id"], merged["name"] = lay["id"], lay["name"]
+    cfg["layout"] = merged
+    return lay["id"]
+
+
 def load_config():
     import yaml
     cfg = yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8"))
     DATA.mkdir(exist_ok=True)
-    lay = DATA / "layout.json"  # written by the layout screen
-    if lay.exists():
-        cfg["layout"].update(json.loads(lay.read_text(encoding="utf-8")))
+    cfg["layout_base"] = dict(cfg["layout"])
+    cfg["layouts"] = load_layouts(cfg["layout"])
+    apply_layout(cfg, None)
     st = load_settings()
     cfg["settings"] = st
     cfg["detect"]["keep"] = int(st["shorts_per_stream"])

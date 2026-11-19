@@ -30,6 +30,10 @@ def layout_filter(cfg, sw, sh):
               f"[b]{_crop(lay['gameplay'], sw, sh)},scale={W}:{bot}:force_original_aspect_ratio=increase,crop={W}:{bot}[g];"
               f"[t][g]vstack=inputs=2,setsar=1[v]")
         return fc, top, top
+    if lay.get("mode") == "single":
+        fc = (f"[0:v]{_crop(lay['gameplay'], sw, sh)},scale={W}:{H}:force_original_aspect_ratio=increase,"
+              f"crop={W}:{H},setsar=1[v]")
+        return fc, H * 0.72, H // 2
     fg_h = _even(W * sh / sw)
     fc = (f"[0:v]split=2[a][b];"
           f"[a]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},boxblur=22:2,eq=brightness=-0.18[bg];"
@@ -53,9 +57,15 @@ def overlay_inputs(cfg, seam):
     inputs, chain = [], ""
     k = 0
     cur = "v"
+    only = cfg.get("layout", {}).get("banners")      # this layout's banners (None = every banner that's on)
     for ov in cfg.get("settings", {}).get("overlays", []):
         path = DATA / "overlays" / ov.get("file", "")
-        if not ov.get("enabled", True) or not path.is_file():
+        if not path.is_file():
+            continue
+        if only is not None:
+            if ov.get("file") not in only:
+                continue
+        elif not ov.get("enabled", True):
             continue
         k += 1
         idx = k   # input 0 is the stream

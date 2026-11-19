@@ -1,5 +1,12 @@
 # What's new
 
+## 1.3.0
+- Saved layouts: make as many layouts as you want (e.g. "GTA", "ARC Raiders", "Gameplay only") on the Layouts & Banners screen. Your current layout is kept as "Main".
+- Three styles per layout: Peanut over gameplay, Gameplay only (one box fills the whole Short), or Whole stream.
+- Move a box by dragging inside it, and use the Zoom slider to frame tighter. Changes save by themselves.
+- Pick which banners go on each layout.
+- Choose the layout when you make Shorts (top of Make Shorts), and switch any single Short to a different layout in the trim editor, then Update Short.
+
 ## 1.2.3
 - Premiere-friendly files: exports and Shorts now use the most compatible H.264 settings, a steady frame rate and standard 48 kHz stereo audio, so Premiere imports them without "unsupported compression type" errors.
 

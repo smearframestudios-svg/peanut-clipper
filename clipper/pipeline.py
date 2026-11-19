@@ -34,7 +34,9 @@ def _job_dirs(cfg, name):
     return job, work, out
 
 
-def process_vod(source, cfg, start=None, end=None, chat_file=None, keep=None):
+def process_vod(source, cfg, start=None, end=None, chat_file=None, keep=None, layout=None):
+    from .util import apply_layout
+    apply_layout(cfg, layout)
     name = source if download.is_url(source) else Path(source).stem
     job, work, out = _job_dirs(cfg, name)
     print(f"\n== Job {job}")
@@ -129,7 +131,7 @@ def _render_all(cands, video, out, job, cfg, sw, sh, src_url, offset=0.0, source
             "length": round(c["end"] - c["start"], 1),
             "score": c["score"], "reasons": c["reasons"], "transcript": c.get("text", ""),
             "title": title, "description": make_description(title, cfg, url),
-            "status": "pending",
+            "status": "pending", "layout": cfg["layout"].get("id"),
         })
     save_json(out / "clips.json", {"job": job, "source": src_url or str(video), "clips": clips,
                                    "source_dir": str(source_dir) if source_dir else None,
@@ -138,7 +140,9 @@ def _render_all(cands, video, out, job, cfg, sw, sh, src_url, offset=0.0, source
     return out
 
 
-def process_twitch_clips(cfg, hours=24, top=10):
+def process_twitch_clips(cfg, hours=24, top=10, layout=None):
+    from .util import apply_layout
+    apply_layout(cfg, layout)
     seen_path = cfg["paths"]["work_dir"] / "seen_twitch_clips.json"
     seen = set(load_json(seen_path, []))
     clips = [c for c in twitch.top_clips(cfg, hours, top * 3) if c["id"] not in seen]
@@ -191,6 +195,7 @@ def process_twitch_clips(cfg, hours=24, top=10):
                         "length": round(cand["end"], 1), "score": cand["score"], "reasons": cand["reasons"],
                         "transcript": cand.get("text", ""), "title": title,
                         "description": make_description(title, cfg), "status": "pending",
+                        "layout": cfg["layout"].get("id"),
                         "twitch_url": cand["_url"]})
     save_json(out / "clips.json", {"job": job, "source": "twitch top clips", "clips": results,
                                    "source_dir": str(work),

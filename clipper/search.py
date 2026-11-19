@@ -141,7 +141,9 @@ def _merge_marks(a, b):
 
 
 # ------------------------------------------------------------------ the search command
-def run_search(cfg, source, words_text, start=None, end=None, use_chat=True, similar=True):
+def run_search(cfg, source, words_text, start=None, end=None, use_chat=True, similar=True, layout=None):
+    from .util import apply_layout
+    layout = apply_layout(cfg, layout)
     queries = parse_queries(words_text)
     if not queries:
         raise SystemExit("[!] Type at least one word or phrase to search for.")
@@ -174,7 +176,7 @@ def run_search(cfg, source, words_text, start=None, end=None, use_chat=True, sim
     data = {"sid": sid, "source": source, "url": source if download.is_url(source) else "",
             "source_file": str(Path(video).resolve()), "source_dir": str(dl) if dl else None,
             "transcript_cache": str(cache), "offset": offset, "duration": dur,
-            "words": words_text, "queries": [q["label"] for q in queries], "matches": matches,
+            "words": words_text, "queries": [q["label"] for q in queries], "matches": matches, "layout": layout,
             "created": dt.datetime.now().isoformat(timespec="seconds")}
     save_json(out / "search.json", data)
     save_json(out / "clips.json", {"job": sid, "source": source, "clips": [], "source_dir": data["source_dir"],
@@ -210,12 +212,14 @@ def _segments_from_cache(cache_path):
     return segs, words
 
 
-def clip_from_match(cfg, sid, idx, export=False, lead=LEAD, tail=TAIL):
+def clip_from_match(cfg, sid, idx, export=False, lead=LEAD, tail=TAIL, layout=None):
     from .library import export_raw
     from .render import render_short
     from .titles import make_description, make_title
+    from .util import apply_layout
     out = cfg["paths"]["output_dir"] / sid
     data = load_json(out / "search.json")
+    apply_layout(cfg, layout or data.get("layout"))
     m = next((x for x in data["matches"] if x["i"] == int(idx)), None)
     if not m:
         raise SystemExit("[!] That match wasn't found.")
@@ -244,7 +248,7 @@ def clip_from_match(cfg, sid, idx, export=False, lead=LEAD, tail=TAIL):
             "length": round(end - start, 1), "score": 0, "reasons": [f"says '{m['query']}'" if m["kind"] == "speech"
                                                                     else f"chat says '{m['query']}'"],
             "transcript": text, "title": title, "description": make_description(title, cfg, url),
-            "status": "pending", "from_search": m["i"]}
+            "status": "pending", "from_search": m["i"], "layout": cfg["layout"].get("id")}
     if export:
         clip["status"] = "approved"
         cd["clips"].append(clip)
@@ -298,7 +302,8 @@ def add_keyword_clips(cfg, out, video, cache, chat, offset, src_url, existing):
                       "src_start": round(start, 2), "src_end": round(end, 2),
                       "source_file": str(Path(video).resolve()), "length": round(end - start, 1), "score": 0,
                       "reasons": [f"saved word: '{m['query']}'"], "transcript": text, "title": title,
-                      "description": make_description(title, cfg, url), "status": "pending"})
+                      "description": make_description(title, cfg, url), "status": "pending",
+                      "layout": cfg["layout"].get("id")})
     return added
 
 

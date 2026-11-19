@@ -126,7 +126,7 @@ def source_info(cfg, job, cid):
         return {"available": False}
     from .download import needs_sync_fix
     dur, w, h = probe(src)
-    return {"available": True, "needs_sync": needs_sync_fix(src), "duration": dur, "start": c["src_start"], "end": c["src_end"],
+    return {"available": True, "needs_sync": needs_sync_fix(src), "duration": dur, "layout": c.get("layout"), "start": c["src_start"], "end": c["src_end"],
             "file": c["file"], "poster": c["poster"], "title": c["title"]}
 
 
@@ -150,10 +150,12 @@ def syncfix(cfg, job, cid):
     print("@@ 100 Stream converted - opening the editor", flush=True)
 
 
-def rerender(cfg, job, cid, start, end):
+def rerender(cfg, job, cid, start, end, layout=None):
     from .render import render_short
     from .transcribe import transcribe_range
+    from .util import apply_layout
     f, data, c = _find(cfg, job, cid)
+    c["layout"] = apply_layout(cfg, layout or c.get("layout"))
     src = Path(c.get("source_file", ""))
     if not src.exists():
         raise SystemExit("[!] The full stream for this Short was already deleted, so it can't be re-cut.")

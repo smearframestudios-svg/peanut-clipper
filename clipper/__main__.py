@@ -46,10 +46,12 @@ def main(argv=None):
     v.add_argument("--chat")
     v.add_argument("--keep", type=int)
     v.add_argument("--no-review", action="store_true")
+    v.add_argument("--layout")
     c = sub.add_parser("clips")
     c.add_argument("--hours", type=int, default=24)
     c.add_argument("--top", type=int, default=8)
     c.add_argument("--no-review", action="store_true")
+    c.add_argument("--layout")
     u = sub.add_parser("upload")
     u.add_argument("--dry-run", action="store_true")
     sub.add_parser("auto")
@@ -58,6 +60,7 @@ def main(argv=None):
     rr.add_argument("id")
     rr.add_argument("start", type=float)
     rr.add_argument("end", type=float)
+    rr.add_argument("--layout")
     sf = sub.add_parser("syncfix", help="convert a Short's (or a search's) stream to H.264")
     sf.add_argument("job")
     sf.add_argument("id", nargs="?")
@@ -73,10 +76,12 @@ def main(argv=None):
     se.add_argument("--to", dest="end")
     se.add_argument("--no-chat", action="store_true")
     se.add_argument("--exact", action="store_true", help="only exact word forms")
+    se.add_argument("--layout")
     fs = sub.add_parser("fromsearch", help="make a Short (or Premiere export) from a search match")
     fs.add_argument("sid")
     fs.add_argument("idx", type=int)
     fs.add_argument("--export", action="store_true")
+    fs.add_argument("--layout")
     fr = sub.add_parser("frame", help="grab one frame from a stream for the Layout screen")
     fr.add_argument("source")
     fr.add_argument("--at", default="1:00:00")
@@ -113,10 +118,10 @@ def main(argv=None):
         serve_app(cfg, a.port, not a.no_browser)
     elif a.cmd == "vod":
         from .pipeline import process_vod
-        process_vod(a.source, cfg, parse_hms(a.start), parse_hms(a.end), a.chat, a.keep)
+        process_vod(a.source, cfg, parse_hms(a.start), parse_hms(a.end), a.chat, a.keep, a.layout)
     elif a.cmd == "clips":
         from .pipeline import process_twitch_clips
-        process_twitch_clips(cfg, a.hours, a.top)
+        process_twitch_clips(cfg, a.hours, a.top, a.layout)
     elif a.cmd == "upload":
         from .upload import upload_approved
         upload_approved(cfg, a.dry_run)
@@ -125,7 +130,7 @@ def main(argv=None):
         run_auto(cfg)
     elif a.cmd == "rerender":
         from .library import rerender
-        rerender(cfg, a.job, a.id, a.start, a.end)
+        rerender(cfg, a.job, a.id, a.start, a.end, a.layout)
     elif a.cmd == "syncfix":
         if a.search:
             from .search import syncfix_search
@@ -142,11 +147,13 @@ def main(argv=None):
         print(f"@@ 100 Exported {len(todo)} clip(s)", flush=True)
     elif a.cmd == "search":
         from .search import run_search
-        run_search(cfg, a.source, a.words, parse_hms(a.start), parse_hms(a.end), not a.no_chat, not a.exact)
+        run_search(cfg, a.source, a.words, parse_hms(a.start), parse_hms(a.end), not a.no_chat, not a.exact,
+                   a.layout)
     elif a.cmd == "fromsearch":
         from .search import clip_from_match
         st = cfg["settings"]
-        clip_from_match(cfg, a.sid, a.idx, a.export, st.get("search_lead_sec", 10), st.get("search_tail_sec", 8))
+        clip_from_match(cfg, a.sid, a.idx, a.export, st.get("search_lead_sec", 10), st.get("search_tail_sec", 8),
+                        a.layout)
     elif a.cmd == "frame":
         from .app import grab_frame
         grab_frame(cfg, a.source, parse_hms(a.at))

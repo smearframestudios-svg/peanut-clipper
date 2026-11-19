@@ -28,6 +28,10 @@ overlays/, client_secret.json, token.json, hardware.json, processed.json, logs),
   auto-delete), `upload.py` (YouTube API), `auto.py` (nightly scheduled task), `updater.py`, `setup_app.py`.
 - Progress lines printed as `@@ <pct> <label>` drive the progress bar.
 
+## Layouts
+Saved in `data/layouts.json` ({default, layouts:[{id,name,mode stack|single|blurfit,avatar,gameplay,top_height,banners}]}).
+`util.apply_layout(cfg, id)` sets `cfg["layout"]` for the renderer; each clip records its `layout` id.
+
 ## Owner preferences
 - Edits Shorts in Premiere Pro (vertical 1080x1920, 60 fps template with their own banners).
 - Previews must not autoplay; approved items leave the review list; no duplicate files left in folders.
