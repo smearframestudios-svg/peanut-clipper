@@ -65,7 +65,7 @@ class Runner:
                 _, pct, label = line.split(" ", 2)
                 self.pct, self.label = int(pct), label
                 continue
-            fm = ff.search(line) if self.kind in ("vod", "frame") and self.section_len else None
+            fm = ff.search(line) if self.kind in ("vod", "frame", "search") and self.section_len else None
             if fm:
                 done = int(fm.group(1)) * 3600 + int(fm.group(2)) * 60 + float(fm.group(3))
                 frac = min(1.0, done / self.section_len)
@@ -75,7 +75,7 @@ class Runner:
                     self.log[-1] = line
                     continue
             m = dl.search(line)
-            if m and self.kind in ("vod", "frame"):
+            if m and self.kind in ("vod", "frame", "search"):
                 p = float(m.group(1))
                 self.pct = max(self.pct, int(2 + p * 0.3))
                 self.label = f"Downloading the stream ({p:.0f}%)"
@@ -89,7 +89,7 @@ class Runner:
         if not self.ok:
             err = next((ln for ln in reversed(self.log) if ln.startswith(("[!]", "ERROR")) or "Error" in ln), "")
             self.label = (err.strip() or f"Stopped (code {code})")[:300]
-        elif self.kind not in ("vod",):
+        elif self.kind not in ("vod", "search", "fromsearch"):
             self.pct = 100
             self.label = {"upload": "Upload finished", "frame": "Frame ready - draw the boxes below",
                           "auto": "Auto run finished", "clips": "Twitch Shorts ready to review",
@@ -149,6 +149,7 @@ def app_state():
         "has_frame": (DATA / "calibrate.jpg").exists(),
         "default_export": str(ROOT / "exports"),
         "update": UPDATE,
+        "last_made": load_json(cfg["paths"]["work_dir"] / "last_made.json"),
         "layout": {k: cfg["layout"][k] for k in ("mode", "avatar", "gameplay", "top_height")},
     }
 
@@ -216,6 +217,31 @@ def make_handler():
             if p == "/api/plan":
                 from .upload import plan
                 return self._send(200, plan(cfg))
+            if p == "/api/searches":
+                out = []
+                for f in sorted(Path(cfg["paths"]["output_dir"]).glob("*/search.json"), reverse=True)[:15]:
+                    d = load_json(f)
+                    out.append({"sid": d["sid"], "words": d["words"], "count": len(d["matches"]),
+                                "created": d["created"], "source": d["source"]})
+                return self._send(200, out)
+            if p == "/api/search":
+                from urllib.parse import parse_qs
+                sid = Path(parse_qs(urlparse(self.path).query)["sid"][0]).name
+                d = load_json(Path(cfg["paths"]["output_dir"]) / sid / "search.json")
+                if not d:
+                    return self._send(404, {"error": "search not found"})
+                cd = load_json(Path(cfg["paths"]["output_dir"]) / sid / "clips.json") or {"clips": []}
+                made = {c.get("from_search"): c["status"] for c in cd["clips"] if c.get("from_search") is not None}
+                for m in d["matches"]:
+                    m["made"] = made.get(m["i"])
+                d["source_available"] = Path(d["source_file"]).is_file()
+                return self._send(200, d)
+            if p.startswith("/search_source/"):
+                sid = Path(p.split("/")[2]).name
+                d = load_json(Path(cfg["paths"]["output_dir"]) / sid / "search.json")
+                if d and Path(d["source_file"]).is_file():
+                    return self._file(Path(d["source_file"]))
+                return self._send(404, "not found")
             if p == "/api/clip_info":
                 from urllib.parse import parse_qs
                 q = parse_qs(urlparse(self.path).query)
@@ -299,6 +325,25 @@ def make_handler():
                     args, label = ["auto"], "Checking the channel for a finished stream..."
                 elif kind == "hwtest":
                     args, label = ["hwtest"], "Testing your graphics card..."
+                elif kind == "search":
+                    url = (body.get("url") or "").strip()
+                    if not url or not (body.get("words") or "").strip():
+                        return self._send(400, {"error": "Paste a stream link and type the words to look for."})
+                    args = ["search", url, "--words", body["words"]]
+                    if body.get("from"):
+                        args += ["--from", body["from"]]
+                    if body.get("to"):
+                        args += ["--to", body["to"]]
+                    if not body.get("chat", True):
+                        args.append("--no-chat")
+                    if body.get("exact"):
+                        args.append("--exact")
+                    label = "Starting the search..."
+                    a_, b_ = parse_hms(body.get("from") or None), parse_hms(body.get("to") or None)
+                    section = (b_ - (a_ or 0)) if b_ else None
+                elif kind == "fromsearch":
+                    args = ["fromsearch", body["sid"], str(int(body["idx"]))] + (["--export"] if body.get("export") else [])
+                    label = "Exporting for Premiere..." if body.get("export") else "Making the Short..."
                 elif kind == "rerender":
                     args = ["rerender", body["job"], body["id"], str(float(body["start"])), str(float(body["end"]))]
                     label = "Re-cutting the Short..."
@@ -309,7 +354,7 @@ def make_handler():
                     args, label = ["frame", body.get("url", ""), "--at", body.get("at") or "1:00:00"], "Grabbing a frame..."
                 else:
                     return self._send(400, {"error": "unknown job"})
-                if not RUNNER.start(kind, args, label, section if kind == "vod" else (8 if kind == "frame" else None)):
+                if not RUNNER.start(kind, args, label, section if kind in ("vod", "search") else (8 if kind == "frame" else None)):
                     return self._send(409, {"error": "Something is already running - wait for it or cancel it."})
                 return self._send(200, {"ok": True})
             if p == "/api/check_update":

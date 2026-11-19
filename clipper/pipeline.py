@@ -93,6 +93,15 @@ def process_vod(source, cfg, start=None, end=None, chat_file=None, keep=None):
     best.sort(key=lambda c: c["start"])
     src_url = source if download.is_url(source) else ""
     result = _render_all(best, video, out, job, cfg, sw, sh, src_url, offset, source_dir=dl)
+    if cfg["settings"].get("saved_keywords"):
+        from .search import add_keyword_clips
+        data = load_json(out / "clips.json")
+        extra = add_keyword_clips(cfg, out, video, cache, chat, offset, src_url, data["clips"])
+        if extra:
+            data["clips"] += extra
+            save_json(out / "clips.json", data)
+            print(f"  + {len(extra)} Shorts from your saved words")
+        best = best + extra
     if dl is not None:
         _mark_processed(cfg, download.cache_key(source))
     shutil.rmtree(work, ignore_errors=True)

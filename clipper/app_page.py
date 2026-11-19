@@ -91,6 +91,12 @@ a{color:var(--blue)}
 .ov .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px}
 .plan .it .btn{padding:7px 12px;font-size:13px}
+.kw-res{margin-top:16px}.kw-player{display:none;margin:12px 0}.kw-player video{width:100%;max-height:46vh;background:#000;border-radius:10px}
+.mt{display:flex;gap:14px;align-items:flex-start;padding:12px;border-radius:10px;background:var(--panel2);margin-bottom:8px}
+.mt .tm{font:700 14px Consolas,monospace;color:var(--acc);min-width:74px;padding-top:2px}
+.mt .tx{flex:1;min-width:0;color:#d6d7db;font-size:14px}.mt .tx mark{background:var(--acc);color:#111;border-radius:3px;padding:0 2px;font-weight:700}
+.mt .bt{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.mt .btn{padding:7px 11px;font-size:13px}
+.mt .made{font-size:12px;color:#9ee6bd}
 </style></head><body>
 <header>
   <div class="brand"><span class="dot"></span>Peanut Clipper</div>
@@ -117,6 +123,29 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
     <div class="row" style="margin-top:12px">
       <label class="toggle tiny"><input type="checkbox" id="part"> Only use part of the stream</label>
       <span id="partBox" style="display:none" class="row tiny">from <input type="text" class="small" id="from" value="1:00:00"> to <input type="text" class="small" id="to" value="2:00:00"></span>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Find by keywords</h3>
+    <p class="tiny mute" style="margin:-4px 0 12px">Finds every time Peanut says these words (and when chat spams them). Separate words or phrases with commas.</p>
+    <div class="row">
+      <input class="big" type="text" id="kwUrl" placeholder="Stream link (leave empty to use the one above)">
+    </div>
+    <div class="row" style="margin-top:10px">
+      <input class="big" type="text" id="kwWords" placeholder='e.g.  drive, use a blinker, red light'>
+      <button class="btn main" id="kwGo">Search</button>
+    </div>
+    <div class="row tiny" style="margin-top:10px;gap:18px">
+      <label class="toggle"><input type="checkbox" id="kwChat" checked> Also search chat</label>
+      <label class="toggle"><input type="checkbox" id="kwSimilar" checked> Match similar words (drive &rarr; driving)</label>
+      <label class="toggle"><input type="checkbox" id="kwPart"> Only part of the stream</label>
+      <span id="kwPartBox" style="display:none" class="row">from <input type="text" class="small" id="kwFrom" value="1:00:00"> to <input type="text" class="small" id="kwTo" value="2:00:00"></span>
+    </div>
+    <p class="tiny mute" id="kwCpu" style="display:none;margin:10px 0 0">Heads up: speech is running on the CPU, so searching a full stream can take an hour or more. Try "Only part of the stream" first.</p>
+    <div class="kw-res" id="kwRes" style="display:none">
+      <div class="row"><b id="kwHead"></b><span style="margin-left:auto" class="tiny mute">Earlier searches</span><select id="kwPick"></select></div>
+      <div class="kw-player" id="kwPlayer"><video id="kwVid" controls preload="none"></video></div>
+      <div id="kwList" style="margin-top:12px"></div>
     </div>
   </div>
   <div class="card" id="jobCard" style="display:none">
@@ -189,6 +218,14 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
       <label class="k">Captions</label><label class="toggle"><input type="checkbox" id="s_captions"> Burn word-by-word captions into the video</label>
       <label class="k">Posting times (LA time)</label><input type="text" id="s_schedule_times" placeholder="11:45, 16:30, 20:15">
     </div>
+  </div>
+  <div class="card"><h3>Saved keywords</h3>
+    <div class="set">
+      <label class="k">Words to look for in every stream</label><input type="text" class="big" id="s_saved_keywords" placeholder="e.g. use a blinker, red light">
+      <label class="k">Max extra Shorts per stream</label><input type="number" min="1" max="20" class="small" id="s_saved_keywords_max">
+      <label class="k">Seconds before / after a match</label><div><input type="number" min="0" max="120" class="small" id="s_search_lead_sec"> / <input type="number" min="0" max="120" class="small" id="s_search_tail_sec"></div>
+    </div>
+    <p class="tiny mute" style="margin:12px 0 0">When set, every stream you clip (and the nightly run) also listens to the whole stream for these words and adds Shorts for them. Adds a few minutes per stream on your graphics card.</p>
   </div>
   <div class="card"><h3>Premiere export</h3>
     <div class="set">
@@ -310,12 +347,12 @@ function fmtTime(t){if(!t)return'';let[h,m]=t.split(':').map(Number);const ap=h>
 function drawJob(j){
   const card=$('jobCard');if(!j.kind){card.style.display='none';return}
   card.style.display='block';
-  const titles={rerender:'Re-cutting a Short',export:'Exporting for Premiere',vod:'Making Shorts',clips:'Twitch top clips',upload:'Uploading',auto:'Auto mode',frame:'Grabbing a frame',hwtest:'Graphics card test'};
+  const titles={search:'Searching for keywords',fromsearch:'Cutting a match',rerender:'Re-cutting a Short',export:'Exporting for Premiere',vod:'Making Shorts',clips:'Twitch top clips',upload:'Uploading',auto:'Auto mode',frame:'Grabbing a frame',hwtest:'Graphics card test'};
   $('jobTitle').textContent=(titles[j.kind]||'Working')+(j.running?'...':'');
   $('jobPct').textContent=j.running?j.pct+'%':'';
   $('bar').className='bar'+(j.ok===false?' err':(j.ok?' done':''));$('bar').firstElementChild.style.width=(j.ok?100:j.pct)+'%';
   $('jobLabel').textContent=j.label;$('cancel').style.display=j.running?'':'none';
-  ['go','goTwitch','goAuto','goUpload','goFrame','hwTest','goExportAll'].forEach(id=>$(id).disabled=j.running);
+  ['go','kwGo','goTwitch','goAuto','goUpload','goFrame','hwTest','goExportAll'].forEach(id=>$(id).disabled=j.running);
   if(logOpen){$('log').textContent=j.log.join('\n');}
   const key=j.kind+':'+j.ok;
   if(!j.running&&j.ok!==null&&lastJobKey&&lastJobKey!==key){
@@ -323,6 +360,10 @@ function drawJob(j){
     if(j.ok&&j.kind==='frame'){initLayout(true)}
     if(j.ok&&j.kind==='upload'){loadPlan()}
     if(j.ok&&j.kind==='export'){toast('<b>Exported for Premiere.</b><br><span class="tiny">'+esc(S.settings.export_folder||S.default_export)+'</span>');loadPlan()}
+    if(j.ok&&j.kind==='search'){loadSearches(true)}
+    if(j.kind==='fromsearch'){if(KW)openSearch(KW.sid,true);
+      if(j.ok&&S.last_made&&!S.last_made.export){api('/api/clips').then(cs=>{const c=cs.find(x=>x.job===S.last_made.job&&x.id===S.last_made.id);if(c)openEditor(c)})}
+      if(j.ok&&S.last_made&&S.last_made.export)toast('<b>Exported for Premiere.</b><br><span class="tiny">'+esc(S.settings.export_folder||S.default_export)+'</span>')}
     if(j.kind==='rerender'){edSaving=false;$('edSave').disabled=false;$('edSave').textContent='Update Short';
       if(j.ok){toast('Short updated.');closeEditor();loadClips()}}
     if(!j.ok){toast('<b>Stopped:</b> '+esc(j.label)+'<br><span class="tiny">Click "Show details" on the Make Shorts tab for the full log.</span>')}
@@ -355,6 +396,39 @@ $('vUpdate').onclick=async()=>{if(S.job&&S.job.running){toast('Wait for the curr
 $('quit').onclick=async()=>{if(S&&S.job&&S.job.running&&!confirm('A job is still running. Quit anyway? It will be stopped.'))return;
   quitting=true;await fetch('/api/quit',{method:'POST',body:'{}'}).catch(()=>{});
   cover('Peanut Clipper is closed','You can close this tab. Open it again from the Desktop icon.');document.querySelector('.spin').style.display='none'};
+
+// ---------- keyword search ----------
+let KW=null;
+$('kwPart').onchange=e=>$('kwPartBox').style.display=e.target.checked?'inline-flex':'none';
+$('kwGo').onclick=async()=>{const url=($('kwUrl').value||$('url').value).trim();
+  const body={kind:'search',url,words:$('kwWords').value,chat:$('kwChat').checked,exact:!$('kwSimilar').checked};
+  if($('kwPart').checked){body.from=$('kwFrom').value;body.to=$('kwTo').value}
+  await api('/api/run',body);lastJobKey='running';poll()};
+async function loadSearches(openNewest){
+  const list=await api('/api/searches');const sel=$('kwPick');
+  sel.innerHTML=list.map(x=>`<option value="${x.sid}">${esc(x.words)} (${x.count}) - ${x.created.replace('T',' ').slice(0,16)}</option>`).join('');
+  if(!list.length)return;if(openNewest||!KW)openSearch(list[0].sid);
+}
+$('kwPick').onchange=()=>openSearch($('kwPick').value);
+const T=t=>{t=Math.max(0,Math.floor(t));return Math.floor(t/3600)+':'+String(Math.floor(t%3600/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0')};
+async function openSearch(sid,keepPlayer){
+  KW=await api('/api/search?sid='+encodeURIComponent(sid));$('kwRes').style.display='block';$('kwPick').value=sid;
+  $('kwHead').textContent=`${KW.matches.length} match${KW.matches.length===1?'':'es'} for: ${KW.queries.join(', ')}`;
+  if(!keepPlayer){$('kwPlayer').style.display='none';$('kwVid').pause()}
+  const box=$('kwList');
+  if(!KW.matches.length){box.innerHTML='<div class="mute">No matches. Try fewer or shorter words, or turn on "Match similar words".</div>';return}
+  box.innerHTML=KW.matches.map(m=>`<div class="mt"><div class="tm">${T(m.t+KW.offset)}</div>
+    <div class="tx"><div class="chips" style="margin-bottom:4px">${m.queries.map(q=>`<span class="chip">${m.kind==='chat'?'chat: ':''}${esc(q)}</span>`).join('')}${m.made?`<span class="made">&#10003; ${m.made==='exported'?'exported':'made into a Short'}</span>`:''}</div>
+    ${esc(m.text).replace(/\[\[(.+?)\]\]/g,'<mark>$1</mark>')}</div>
+    <div class="bt"><button class="btn" data-a="play" data-i="${m.i}">&#9654; Preview</button><button class="btn main" data-a="short" data-i="${m.i}">Make Short</button><button class="btn" data-a="export" data-i="${m.i}">Export for Premiere</button></div></div>`).join('');
+  box.querySelectorAll('[data-a]').forEach(b=>b.onclick=async()=>{const m=KW.matches.find(x=>x.i==b.dataset.i);
+    if(!KW.source_available){toast('The stream for this search was deleted. Run the search again to re-download it.');return}
+    if(b.dataset.a==='play'){const v=$('kwVid');$('kwPlayer').style.display='block';
+      if(!v.src.endsWith('/search_source/'+KW.sid)){v.preload='auto';v.src='/search_source/'+KW.sid;v.load()}
+      const go=()=>{v.currentTime=Math.max(0,m.t-8);v.play()};if(v.readyState>0)go();else v.addEventListener('loadedmetadata',go,{once:true});
+      $('kwPlayer').scrollIntoView({behavior:'smooth',block:'center'});return}
+    await api('/api/run',{kind:'fromsearch',sid:KW.sid,idx:m.i,export:b.dataset.a==='export'});lastJobKey='running';poll()});
+}
 
 // ---------- review ----------
 async function loadClips(){
@@ -393,16 +467,17 @@ $('goExportAll').onclick=async()=>{await api('/api/run',{kind:'export'});lastJob
 $('goUpload').onclick=async()=>{await api('/api/run',{kind:'upload'});lastJobKey='running';show('make');poll()};
 
 // ---------- settings ----------
-const keys=['keep_source_days','export_folder','export_handles_sec','export_vertical_too','output_fps','auto_enabled','auto_time','channel_url','auto_twitch_clips','shorts_per_stream','captions','delete_source','delete_rejected','delete_uploaded','use_gpu','twitch_client_id','twitch_client_secret','schedule_times'];
+const keys=['saved_keywords','saved_keywords_max','search_lead_sec','search_tail_sec','keep_source_days','export_folder','export_handles_sec','export_vertical_too','output_fps','auto_enabled','auto_time','channel_url','auto_twitch_clips','shorts_per_stream','captions','delete_source','delete_rejected','delete_uploaded','use_gpu','twitch_client_id','twitch_client_secret','schedule_times'];
 async function fillSettings(){
   if(!S)await poll();const st=S.settings;
   for(const k of keys){const el=$('s_'+k);if(!el)continue;
-    if(el.type==='checkbox')el.checked=!!st[k];else if(k==='schedule_times')el.value=(st[k]||[]).join(', ');else el.value=st[k]??''}
+    if(el.type==='checkbox')el.checked=!!st[k];else if(k==='schedule_times'||k==='saved_keywords')el.value=(st[k]||[]).join(', ');else el.value=st[k]??''}
   $('hwInfo').innerHTML=`Speech: <b>${S.hw.gpu_speech?'graphics card':'CPU'}</b> &middot; Video: <b>${S.hw.gpu_video?'graphics card':'CPU'}</b>`;
 }
 $('save').onclick=async()=>{const body={};
   for(const k of keys){const el=$('s_'+k);if(!el)continue;
     if(el.type==='checkbox')body[k]=el.checked;else if(el.type==='number'||k==='output_fps')body[k]=parseInt(el.value||'0');
+    else if(k==='saved_keywords')body[k]=el.value.split(',').map(s=>s.trim()).filter(Boolean);
     else if(k==='schedule_times')body[k]=el.value.split(',').map(s=>s.trim()).filter(s=>/^\d{1,2}:\d{2}$/.test(s)).map(s=>s.padStart(5,'0'));else body[k]=el.value.trim()}
   const r=await api('/api/settings',body);$('saveMsg').textContent=r.message;await poll();fillSettings()};
 $('hwTest').onclick=async()=>{await api('/api/run',{kind:'hwtest'});lastJobKey='running';show('make');poll()};
@@ -521,5 +596,5 @@ drawCal=function(){_drawCal();if(!L)return;const c=$('prev'),x=c.getContext('2d'
     x.drawImage(im,0,y+off,540,h)}};
 const _show=show;show=function(t){_show(t);if(t==='layout')setTimeout(renderOverlays,300)};
 
-poll();setInterval(poll,1500);
+poll().then(()=>{if(S)$('kwCpu').style.display=S.hw.gpu_speech&&S.settings.use_gpu?'none':'block'});loadSearches();setInterval(poll,1500);
 </script></body></html>"""

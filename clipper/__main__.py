@@ -62,6 +62,17 @@ def main(argv=None):
     ex.add_argument("job", nargs="?")
     ex.add_argument("id", nargs="?")
     ex.add_argument("--all", action="store_true", help="every approved Short")
+    se = sub.add_parser("search", help="find every time words are said in a stream")
+    se.add_argument("source")
+    se.add_argument("--words", required=True, help='comma-separated, e.g. "drive, use a blinker"')
+    se.add_argument("--from", dest="start")
+    se.add_argument("--to", dest="end")
+    se.add_argument("--no-chat", action="store_true")
+    se.add_argument("--exact", action="store_true", help="only exact word forms")
+    fs = sub.add_parser("fromsearch", help="make a Short (or Premiere export) from a search match")
+    fs.add_argument("sid")
+    fs.add_argument("idx", type=int)
+    fs.add_argument("--export", action="store_true")
     fr = sub.add_parser("frame", help="grab one frame from a stream for the Layout screen")
     fr.add_argument("source")
     fr.add_argument("--at", default="1:00:00")
@@ -118,6 +129,13 @@ def main(argv=None):
             print(f"@@ {int(100 * (i - 1) / max(1, len(todo)))} Exporting {i} of {len(todo)}", flush=True)
             export_raw(cfg, job, cid)
         print(f"@@ 100 Exported {len(todo)} clip(s)", flush=True)
+    elif a.cmd == "search":
+        from .search import run_search
+        run_search(cfg, a.source, a.words, parse_hms(a.start), parse_hms(a.end), not a.no_chat, not a.exact)
+    elif a.cmd == "fromsearch":
+        from .search import clip_from_match
+        st = cfg["settings"]
+        clip_from_match(cfg, a.sid, a.idx, a.export, st.get("search_lead_sec", 10), st.get("search_tail_sec", 8))
     elif a.cmd == "frame":
         from .app import grab_frame
         grab_frame(cfg, a.source, parse_hms(a.at))

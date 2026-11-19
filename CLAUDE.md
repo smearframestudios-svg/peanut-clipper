@@ -23,7 +23,8 @@ overlays/, client_secret.json, token.json, hardware.json, processed.json, logs),
 - `clipper/app.py` server + job runner (jobs run as low-priority subprocesses: `python -m clipper <cmd>`),
   `clipper/app_page.py` the whole UI (one HTML string).
 - `pipeline.py` find moments -> `score.py` (chat/audio/names), `transcribe.py` (faster-whisper),
-  `render.py` (ffmpeg 1080x1920, banners, NVENC), `library.py` (review state, re-cut, Premiere export,
+  `render.py` (ffmpeg 1080x1920, banners, NVENC), `search.py` (keyword search over a full
+  cached transcript + chat, Shorts/exports from matches, saved keywords), `library.py` (review state, re-cut, Premiere export,
   auto-delete), `upload.py` (YouTube API), `auto.py` (nightly scheduled task), `updater.py`, `setup_app.py`.
 - Progress lines printed as `@@ <pct> <label>` drive the progress bar.
 

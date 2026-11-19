@@ -23,7 +23,7 @@ Your settings, banners, layout, YouTube login and Shorts are kept.
 
 | Tab | What it's for |
 |---|---|
-| **Make Shorts** | Paste a finished stream link and click **Make Shorts**. A progress bar shows how it's going. |
+| **Make Shorts** | Paste a finished stream link and click **Make Shorts**. Or use **Find by keywords** to pull every moment he says certain words, then Make Short or Export for Premiere from any match. |
 | **Review** | Click **Edit** to move a Short's start or end while seeing the whole stream around it, then click **Update Short**. Approve or Reject each Short; rejected ones are deleted. |
 | **Approved** | **Export for Premiere** saves the raw horizontal clip (full quality, 60 fps, 3 extra seconds on each side) to your folder, ready to drop into your template. You can also upload a Short straight to YouTube. |
 | **Settings** | Auto mode, how many Shorts per stream, captions, auto-delete, graphics card, Twitch. |

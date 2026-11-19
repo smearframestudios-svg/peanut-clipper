@@ -29,6 +29,10 @@ DEFAULT_SETTINGS = {
     "export_vertical_too": False,
     "output_fps": 60,
     "overlays": [],
+    "saved_keywords": [],
+    "saved_keywords_max": 5,
+    "search_lead_sec": 10,
+    "search_tail_sec": 8,
     "twitch_client_id": "",
     "twitch_client_secret": "",
 }

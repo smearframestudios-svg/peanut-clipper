@@ -34,7 +34,8 @@ def counts(cfg):
 
 
 def delete_files(job_dir, clip):
-    for name in (clip.get("file"), clip.get("poster"), Path(clip.get("file", "x")).with_suffix(".ass").name):
+    f = clip.get("file") or ""
+    for name in (f, clip.get("poster"), Path(f).with_suffix(".ass").name if f else ""):
         if name:
             (Path(job_dir) / name).unlink(missing_ok=True)
     clip["deleted"] = True
@@ -44,7 +45,8 @@ def prune(job_dir):
     """Remove a job folder once nothing in it is waiting for review or upload."""
     f = Path(job_dir) / "clips.json"
     data = load_json(f)
-    if data and all(c["status"] in DONE and c.get("deleted") for c in data["clips"]):
+    if data and data["clips"] and not (Path(job_dir) / "search.json").exists() and \
+            all(c["status"] in DONE and c.get("deleted") for c in data["clips"]):
         _delete_source(data)
         shutil.rmtree(job_dir, ignore_errors=True)
 
@@ -70,7 +72,8 @@ def cleanup_sources(cfg):
         data = load_json(f)
         if data.get("source_deleted") or not data.get("source_dir"):
             continue
-        all_done = all(c["status"] in DONE for c in data["clips"])
+        all_done = bool(data["clips"]) and all(c["status"] in DONE for c in data["clips"]) \
+            and not (f.parent / "search.json").exists()
         try:
             age = (dt.datetime.now() - dt.datetime.fromisoformat(data.get("created", ""))).days
         except ValueError:
