@@ -1,5 +1,10 @@
 # What's new
 
+## 1.2.2
+- Fixed audio going out of sync in the trim editor and keyword previews. YouTube often sends streams in a format (AV1/VP9) your graphics card can't play smoothly, so the picture fell behind the sound.
+- New downloads now always use the smooth-playing H.264 format.
+- Streams you already downloaded get converted once (a few minutes on your graphics card) the first time you edit or preview them. The editor opens by itself when it's done.
+
 ## 1.2.1
 - Fixed black windows flashing on screen while the app is open (it got worse with nightly auto mode on). Everything the app runs in the background is now hidden.
 

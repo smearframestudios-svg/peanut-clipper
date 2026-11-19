@@ -1,4 +1,5 @@
 """Downloads a stream VOD (YouTube or Twitch) plus its chat replay."""
+import os
 import re
 import shutil
 import subprocess
@@ -22,11 +23,61 @@ def _yt_dlp():
     return [need("yt-dlp", "Run setup.bat (it installs yt-dlp).")]
 
 
+def video_codec(src):
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name",
+                        "-of", "csv=p=0", str(src)], capture_output=True, text=True)
+    return r.stdout.strip().lower()
+
+
+def needs_sync_fix(src):
+    """True when the stream isn't H.264. YouTube often serves AV1/VP9, which the RTX 2080 can't
+    decode in hardware - in the trim editor the picture falls behind the sound. Converted once."""
+    src = Path(src)
+    if not src.is_file() or (src.parent / "synced.ok").exists():
+        return False
+    codec = video_codec(src)
+    if codec in ("h264", ""):
+        (src.parent / "synced.ok").write_text("h264")
+        return False
+    return True
+
+
+def fix_sync(src, cfg):
+    """Convert a non-H.264 download to H.264 once (GPU when available)."""
+    src = Path(src)
+    if not needs_sync_fix(src):
+        return src
+    print("@@ 33 Converting the stream so it plays smoothly (one time)", flush=True)
+    print(f"  converting {video_codec(src) or 'video'} -> H.264 so it plays in sync and edits smoothly...")
+    tmp = src.with_name("source.syncing.mp4")
+    gpu = cfg.get("render_encoder") == "h264_nvenc"
+    v = (["-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "19", "-b:v", "0"] if gpu
+         else ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-threads", "4"])
+    base = ["ffmpeg", "-v", "error", "-y"]
+    tail = ["-i", str(src), "-map", "0:v:0", "-map", "0:a:0?"] + v + [
+        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-af", "aresample=async=1:first_pts=0",
+        "-avoid_negative_ts", "make_zero", "-movflags", "+faststart", str(tmp)]
+    r = subprocess.run(base + (["-hwaccel", "cuda"] if gpu else []) + tail)
+    if r.returncode != 0 and gpu:      # GPU decode not available - decode on CPU, still encode on GPU
+        r = subprocess.run(base + tail)
+    if r.returncode != 0 or not tmp.exists():
+        tmp.unlink(missing_ok=True)
+        print("  [!] couldn't convert the stream - continuing with the original download")
+        return src
+    final = src.with_suffix(".mp4")
+    os.replace(tmp, final)
+    if final != src:
+        src.unlink(missing_ok=True)
+    (final.parent / "synced.ok").write_text("ok")
+    return final
+
+
 def download_video(url, job_dir, cfg, start=None, end=None):
-    done = [p for p in job_dir.glob("source.*") if p.suffix in (".mp4", ".mkv", ".webm") and p.stat().st_size > 1_000_000]
+    done = [p for p in job_dir.glob("source.*") if p.suffix in (".mp4", ".mkv", ".webm")
+            and ".syncing" not in p.name and p.stat().st_size > 1_000_000]
     if done:
         print(f"  using the video downloaded earlier ({done[0].stat().st_size // 1_000_000} MB)")
-        return done[0]
+        return fix_sync(done[0], cfg)
     status = subprocess.run(_yt_dlp() + ["--no-playlist", "--skip-download", "--print", "live_status", url],
                             capture_output=True, text=True).stdout.strip().splitlines()
     status = status[-1] if status else ""
@@ -37,7 +88,9 @@ def download_video(url, job_dir, cfg, start=None, end=None):
                          f"(usually a few hours after it ends), or use an older stream from the Live tab.\n")
     h = int(cfg["download"]["max_height"])
     cmd = _yt_dlp() + [
-        "-f", f"bv*[height<={h}]+ba/b[height<={h}]/bv*+ba/b",
+        # prefer H.264 + AAC: plays smoothly in the editor and Premiere, decoded by the graphics card
+        "-f", (f"bv*[height<={h}][vcodec^=avc1]+ba[ext=m4a]/bv*[height<={h}][vcodec^=avc1]+ba/"
+               f"bv*[height<={h}]+ba/b[height<={h}]/bv*+ba/b"),
         "--merge-output-format", "mp4",
         "-o", str(job_dir / "source.%(ext)s"), "--no-playlist",
     ]
@@ -64,7 +117,7 @@ def download_video(url, job_dir, cfg, start=None, end=None):
     files = sorted([p for p in job_dir.glob("source.*") if p.suffix in (".mp4", ".mkv", ".webm")], key=lambda p: p.stat().st_size, reverse=True)
     if not files:
         raise RuntimeError("yt-dlp finished but no video file was found")
-    return files[0]
+    return fix_sync(files[0], cfg)
 
 
 def download_chat(url, job_dir, start=None, end=None):

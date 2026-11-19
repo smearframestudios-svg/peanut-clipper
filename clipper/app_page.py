@@ -347,7 +347,7 @@ function fmtTime(t){if(!t)return'';let[h,m]=t.split(':').map(Number);const ap=h>
 function drawJob(j){
   const card=$('jobCard');if(!j.kind){card.style.display='none';return}
   card.style.display='block';
-  const titles={search:'Searching for keywords',fromsearch:'Cutting a match',rerender:'Re-cutting a Short',export:'Exporting for Premiere',vod:'Making Shorts',clips:'Twitch top clips',upload:'Uploading',auto:'Auto mode',frame:'Grabbing a frame',hwtest:'Graphics card test'};
+  const titles={syncfix:'Converting the stream',search:'Searching for keywords',fromsearch:'Cutting a match',rerender:'Re-cutting a Short',export:'Exporting for Premiere',vod:'Making Shorts',clips:'Twitch top clips',upload:'Uploading',auto:'Auto mode',frame:'Grabbing a frame',hwtest:'Graphics card test'};
   $('jobTitle').textContent=(titles[j.kind]||'Working')+(j.running?'...':'');
   $('jobPct').textContent=j.running?j.pct+'%':'';
   $('bar').className='bar'+(j.ok===false?' err':(j.ok?' done':''));$('bar').firstElementChild.style.width=(j.ok?100:j.pct)+'%';
@@ -364,6 +364,8 @@ function drawJob(j){
     if(j.kind==='fromsearch'){if(KW)openSearch(KW.sid,true);
       if(j.ok&&S.last_made&&!S.last_made.export){api('/api/clips').then(cs=>{const c=cs.find(x=>x.job===S.last_made.job&&x.id===S.last_made.id);if(c)openEditor(c)})}
       if(j.ok&&S.last_made&&S.last_made.export)toast('<b>Exported for Premiere.</b><br><span class="tiny">'+esc(S.settings.export_folder||S.default_export)+'</span>')}
+    if(j.kind==='syncfix'){if(j.ok&&pendingEdit){const c=pendingEdit;pendingEdit=null;openEditor(c)}
+      if(j.ok&&pendingPreview!==null&&KW){const i=pendingPreview;pendingPreview=null;openSearch(KW.sid).then(()=>{const b=document.querySelector(`[data-a=play][data-i="${i}"]`);if(b)b.click()})}}
     if(j.kind==='rerender'){edSaving=false;$('edSave').disabled=false;$('edSave').textContent='Update Short';
       if(j.ok){toast('Short updated.');closeEditor();loadClips()}}
     if(!j.ok){toast('<b>Stopped:</b> '+esc(j.label)+'<br><span class="tiny">Click "Show details" on the Make Shorts tab for the full log.</span>')}
@@ -398,7 +400,7 @@ $('quit').onclick=async()=>{if(S&&S.job&&S.job.running&&!confirm('A job is still
   cover('Peanut Clipper is closed','You can close this tab. Open it again from the Desktop icon.');document.querySelector('.spin').style.display='none'};
 
 // ---------- keyword search ----------
-let KW=null;
+let KW=null, pendingPreview=null;
 $('kwPart').onchange=e=>$('kwPartBox').style.display=e.target.checked?'inline-flex':'none';
 $('kwGo').onclick=async()=>{const url=($('kwUrl').value||$('url').value).trim();
   const body={kind:'search',url,words:$('kwWords').value,chat:$('kwChat').checked,exact:!$('kwSimilar').checked};
@@ -423,6 +425,8 @@ async function openSearch(sid,keepPlayer){
     <div class="bt"><button class="btn" data-a="play" data-i="${m.i}">&#9654; Preview</button><button class="btn main" data-a="short" data-i="${m.i}">Make Short</button><button class="btn" data-a="export" data-i="${m.i}">Export for Premiere</button></div></div>`).join('');
   box.querySelectorAll('[data-a]').forEach(b=>b.onclick=async()=>{const m=KW.matches.find(x=>x.i==b.dataset.i);
     if(!KW.source_available){toast('The stream for this search was deleted. Run the search again to re-download it.');return}
+    if(b.dataset.a==='play'&&KW.needs_sync){pendingPreview=m.i;await api('/api/run',{kind:'syncfix',sid:KW.sid});lastJobKey='running';
+      toast('Converting this stream so it plays in sync (one time, a few minutes). Preview starts by itself when it\'s done.');poll();return}
     if(b.dataset.a==='play'){const v=$('kwVid');$('kwPlayer').style.display='block';
       if(!v.src.endsWith('/search_source/'+KW.sid)){v.preload='auto';v.src='/search_source/'+KW.sid;v.load()}
       const go=()=>{v.currentTime=Math.max(0,m.t-8);v.play()};if(v.readyState>0)go();else v.addEventListener('loadedmetadata',go,{once:true});
@@ -513,11 +517,13 @@ async function saveLayout(mode){L.mode=mode;L.top_height=+$('th').value;await ap
 $('saveLayout').onclick=()=>saveLayout('stack');$('useBlur').onclick=()=>saveLayout('blurfit');
 
 // ---------- trim editor ----------
-let E=null, edSaving=false, tlDrag=null;
+let E=null, edSaving=false, tlDrag=null, pendingEdit=null;
 const fmt=t=>{t=Math.max(0,t);const h=Math.floor(t/3600),m=Math.floor(t%3600/60),s=(t%60).toFixed(1);return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(s).padStart(4,'0')};
 async function openEditor(c){
   const info=await api(`/api/clip_info?job=${encodeURIComponent(c.job)}&id=${encodeURIComponent(c.id)}`);
   if(!info.available){toast('The full stream for this Short was already deleted, so it can\'t be re-cut. (Settings &rarr; Auto-delete controls how long streams are kept.)');return}
+  if(info.needs_sync){pendingEdit=c;await api('/api/run',{kind:'syncfix',job:c.job,id:c.id});lastJobKey='running';
+    toast('Converting this stream so it plays in sync (one time, a few minutes). The editor opens by itself when it\'s done.');poll();return}
   E={job:c.job,id:c.id,dur:info.duration,a:info.start,b:info.start+(info.end-info.start),oa:info.start,ob:info.end,pad:60};
   E.b=info.end;setView();
   $('edTitle').textContent=c.title;$('edSrc').src=`/source/${c.job}/${c.id}`;

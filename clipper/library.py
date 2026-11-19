@@ -124,9 +124,30 @@ def source_info(cfg, job, cid):
     src = Path(c.get("source_file", ""))
     if not c.get("source_file") or not src.exists():
         return {"available": False}
+    from .download import needs_sync_fix
     dur, w, h = probe(src)
-    return {"available": True, "duration": dur, "start": c["src_start"], "end": c["src_end"],
+    return {"available": True, "needs_sync": needs_sync_fix(src), "duration": dur, "start": c["src_start"], "end": c["src_end"],
             "file": c["file"], "poster": c["poster"], "title": c["title"]}
+
+
+def _synced_source(cfg, f, data, src):
+    """Older partial downloads may have audio out of sync; fix once and point every Short at it."""
+    from .download import fix_sync, needs_sync_fix
+    if not needs_sync_fix(src):
+        return src
+    new = fix_sync(src, cfg)
+    if str(new) != str(src):
+        for c in data["clips"]:
+            if c.get("source_file") == str(src):
+                c["source_file"] = str(new)
+        save_json(f, data)
+    return new
+
+
+def syncfix(cfg, job, cid):
+    f, data, c = _find(cfg, job, cid)
+    _synced_source(cfg, f, data, Path(c.get("source_file", "")))
+    print("@@ 100 Stream converted - opening the editor", flush=True)
 
 
 def rerender(cfg, job, cid, start, end):
@@ -136,6 +157,7 @@ def rerender(cfg, job, cid, start, end):
     src = Path(c.get("source_file", ""))
     if not src.exists():
         raise SystemExit("[!] The full stream for this Short was already deleted, so it can't be re-cut.")
+    src = _synced_source(cfg, f, data, src)
     dur, sw, sh = probe(src)
     start, end = max(0.0, float(start)), min(dur, float(end))
     if end - start < 3:
@@ -170,6 +192,7 @@ def export_raw(cfg, job, cid, encoder=None):
     src = Path(c.get("source_file", ""))
     if not src.exists():
         raise SystemExit("[!] The full stream for this Short was already deleted, so there's nothing to export.")
+    src = _synced_source(cfg, f, data, src)
     folder = Path(st.get("export_folder") or (ROOT / "exports"))
     folder.mkdir(parents=True, exist_ok=True)
     dur, _, _ = probe(src)

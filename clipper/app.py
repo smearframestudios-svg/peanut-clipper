@@ -94,7 +94,7 @@ class Runner:
             self.label = {"upload": "Upload finished", "frame": "Frame ready - draw the boxes below",
                           "auto": "Auto run finished", "clips": "Twitch Shorts ready to review",
                           "hwtest": "Graphics card test finished", "rerender": "Short updated",
-                          "export": "Exported for Premiere"}.get(self.kind, "Done")
+                          "export": "Exported for Premiere", "syncfix": "Stream converted"}.get(self.kind, "Done")
         self.finished_at = time.time()
 
     def cancel(self):
@@ -235,6 +235,8 @@ def make_handler():
                 for m in d["matches"]:
                     m["made"] = made.get(m["i"])
                 d["source_available"] = Path(d["source_file"]).is_file()
+                from .download import needs_sync_fix
+                d["needs_sync"] = d["source_available"] and needs_sync_fix(d["source_file"])
                 return self._send(200, d)
             if p.startswith("/search_source/"):
                 sid = Path(p.split("/")[2]).name
@@ -344,6 +346,9 @@ def make_handler():
                 elif kind == "fromsearch":
                     args = ["fromsearch", body["sid"], str(int(body["idx"]))] + (["--export"] if body.get("export") else [])
                     label = "Exporting for Premiere..." if body.get("export") else "Making the Short..."
+                elif kind == "syncfix":
+                    args = ["syncfix", body["sid"], "--search"] if body.get("sid") else ["syncfix", body["job"], body["id"]]
+                    label = "Converting the stream so it plays smoothly (one time, a few minutes)..."
                 elif kind == "rerender":
                     args = ["rerender", body["job"], body["id"], str(float(body["start"])), str(float(body["end"]))]
                     label = "Re-cutting the Short..."

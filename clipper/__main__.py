@@ -58,6 +58,10 @@ def main(argv=None):
     rr.add_argument("id")
     rr.add_argument("start", type=float)
     rr.add_argument("end", type=float)
+    sf = sub.add_parser("syncfix", help="convert a Short's (or a search's) stream to H.264")
+    sf.add_argument("job")
+    sf.add_argument("id", nargs="?")
+    sf.add_argument("--search", action="store_true", help="job is a search id")
     ex = sub.add_parser("export", help="export raw horizontal clips for Premiere")
     ex.add_argument("job", nargs="?")
     ex.add_argument("id", nargs="?")
@@ -122,6 +126,13 @@ def main(argv=None):
     elif a.cmd == "rerender":
         from .library import rerender
         rerender(cfg, a.job, a.id, a.start, a.end)
+    elif a.cmd == "syncfix":
+        if a.search:
+            from .search import syncfix_search
+            syncfix_search(cfg, a.job)
+        else:
+            from .library import syncfix
+            syncfix(cfg, a.job, a.id)
     elif a.cmd == "export":
         from .library import clips, export_raw
         todo = [(c["job"], c["id"]) for c in clips(cfg, "approved")] if a.all else [(a.job, a.id)]

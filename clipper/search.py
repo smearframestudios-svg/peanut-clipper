@@ -222,6 +222,12 @@ def clip_from_match(cfg, sid, idx, export=False, lead=LEAD, tail=TAIL):
     src = Path(data["source_file"])
     if not src.exists():
         raise SystemExit("[!] The stream for this search was already deleted. Search again to re-download it.")
+    from .download import fix_sync
+    fixed = fix_sync(src, cfg)
+    if str(fixed) != str(src):
+        data["source_file"] = str(fixed)
+        save_json(out / "search.json", data)
+    src = fixed
     dur, sw, sh = probe(src)
     segs, words = _segments_from_cache(data["transcript_cache"])
     start, end = snap(segs, max(0.0, m["t"] - lead), min(dur, m["t_end"] + tail))
@@ -294,3 +300,14 @@ def add_keyword_clips(cfg, out, video, cache, chat, offset, src_url, existing):
                       "reasons": [f"saved word: '{m['query']}'"], "transcript": text, "title": title,
                       "description": make_description(title, cfg, url), "status": "pending"})
     return added
+
+
+def syncfix_search(cfg, sid):
+    from .download import fix_sync
+    out = cfg["paths"]["output_dir"] / sid
+    data = load_json(out / "search.json")
+    fixed = fix_sync(Path(data["source_file"]), cfg)
+    if str(fixed) != data["source_file"]:
+        data["source_file"] = str(fixed)
+        save_json(out / "search.json", data)
+    progress(100, "Stream converted")
