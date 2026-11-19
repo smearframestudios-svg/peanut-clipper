@@ -115,6 +115,7 @@ def install_task(time_hhmm):
         path = f.name
     r = subprocess.run(["schtasks", "/Create", "/TN", TASK, "/XML", path, "/F"], capture_output=True, text=True)
     os.unlink(path)
+    _task_cache["t"] = 0.0
     return r.returncode == 0, (r.stderr or r.stdout).strip()
 
 
@@ -122,10 +123,19 @@ def remove_task():
     if os.name != "nt":
         return True, ""
     r = subprocess.run(["schtasks", "/Delete", "/TN", TASK, "/F"], capture_output=True, text=True)
+    _task_cache["t"] = 0.0
     return True, (r.stderr or r.stdout).strip()
 
 
-def task_exists():
+_task_cache = {"t": 0.0, "v": False}
+
+
+def task_exists(max_age=120):
+    """Asked by the app every couple of seconds, so only really check Windows every 2 minutes."""
+    import time
     if os.name != "nt":
         return False
-    return subprocess.run(["schtasks", "/Query", "/TN", TASK], capture_output=True).returncode == 0
+    if time.time() - _task_cache["t"] > max_age:
+        _task_cache["v"] = subprocess.run(["schtasks", "/Query", "/TN", TASK], capture_output=True).returncode == 0
+        _task_cache["t"] = time.time()
+    return _task_cache["v"]

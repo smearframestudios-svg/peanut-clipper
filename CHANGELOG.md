@@ -1,5 +1,8 @@
 # What's new
 
+## 1.2.1
+- Fixed black windows flashing on screen while the app is open (it got worse with nightly auto mode on). Everything the app runs in the background is now hidden.
+
 ## 1.2.0
 - Find by keywords: on Make Shorts, search a stream for words or phrases like "drive, use a blinker". You get every moment he says them (and when chat spams them), with the sentence around it.
 - Each match has Preview, Make Short (opens straight in the trim editor) and Export for Premiere.

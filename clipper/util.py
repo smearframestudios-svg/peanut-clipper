@@ -38,8 +38,27 @@ DEFAULT_SETTINGS = {
 }
 
 
+def _hide_console_windows():
+    """On Windows, every console program we start (ffmpeg, yt-dlp, schtasks...) would flash a
+    black window because the app itself runs without one. Make all of them start hidden."""
+    import subprocess
+    if os.name != "nt" or getattr(subprocess.Popen, "_pc_hidden", False):
+        return
+    orig = subprocess.Popen.__init__
+
+    def init(self, *args, **kw):
+        flags = kw.get("creationflags", 0) or 0
+        if not flags & 0x00000008:          # leave DETACHED_PROCESS launches alone
+            kw["creationflags"] = flags | 0x08000000   # CREATE_NO_WINDOW
+        orig(self, *args, **kw)
+
+    subprocess.Popen.__init__ = init
+    subprocess.Popen._pc_hidden = True
+
+
 def setup_env():
     """Put our own tools (and NVIDIA's CUDA DLLs from pip) first on PATH."""
+    _hide_console_windows()
     paths = [str(BIN)]
     try:
         import site
