@@ -1,0 +1,121 @@
+# Peanut Clipper settings. Edit freely — comments explain each part.
+
+streamer:
+  name: Burnt Peanut
+  twitch_login: theburntpeanut
+  credit_line: "Streamer: TheBurntPeanut - twitch.tv/theburntpeanut"
+  hashtags: ["#burntpeanut", "#arcraiders", "#shorts", "#bungulators"]
+
+paths:
+  work_dir: work        # downloads, transcripts, temp files
+  output_dir: output    # finished Shorts + clips.json per job
+
+download:
+  max_height: 1080      # 1080 keeps the peanut sharp when cropped
+
+whisper:
+  model: small.en       # tiny.en / base.en (fast) ... small.en (good) ... medium.en (best, slow)
+  device: cpu           # set to cuda if you have an NVIDIA GPU with CUDA installed
+  compute_type: int8    # use float16 with cuda
+
+detect:
+  chat_delay_sec: 8     # chat reacts this many seconds after the moment
+  clip_len_sec: 35      # default Short length before snapping to sentences
+  min_len_sec: 15
+  max_len_sec: 58
+  tail_sec: 4           # keep a few seconds after the punchline
+  spacing_sec: 90       # two clips can't be closer than this
+  candidates: 30        # moments to transcribe and re-rank per VOD
+  keep: 12              # Shorts to render per VOD
+  weights:
+    chat: 1.0           # how much faster chat is moving than normal
+    hype: 1.3           # LMAO / KEKW / CLIP IT / skull spam
+    audio: 0.6          # loud moments (yelling, laughing)
+    names: 2.5          # famous people mentioned (your best Shorts are these)
+    topics: 2.0         # hot topics (face reveal, bans, beef...)
+
+# Famous names: "alias|alias|alias": weight. First alias is the display name.
+# Your top Shorts all had a big name in them - keep this list fresh.
+names:
+  "MrBeast|Mr Beast|Mister Beast": 3
+  "Dillon Danis|Dillon": 2.5
+  "LilyPichu|Lily Pichu|Lily": 2
+  "Yvonnie": 2
+  "Cloakzy|Cloak": 2
+  "Nickmercs|Nick Mercs|Nick": 2
+  "Tfue": 2
+  "HutchMF|Hutch": 1.5
+  "Coco": 1.5
+  "Gimmick": 1.5
+  "Impheetus": 1.5
+  "Habibi": 1.5
+  "Ja'Marr|Jamarr|Ja Marr|Chase": 1.5
+  "Dr Disrespect|Doc|DrDisrespect": 2.5
+  "Shroud": 2
+  "Summit|Summit1g": 2
+  "xQc": 2.5
+  "Kai Cenat|Kai": 2.5
+  "IShowSpeed|Speed": 2.5
+  "Ironmouse": 2
+  "TimTheTatman|Tim": 1.5
+  "DrLupo|Lupo": 1.5
+  "Pestily": 1.5
+  "Obama": 2
+  "Taxi|Taxi2g": 1.5
+  "Mr Wobbles|Wobbles": 1.5
+
+topics:
+  "face reveal|face cam|facecam|show your face|real face": 3
+  "banned|ban|suspended": 2
+  "Streamer Awards|award|VTuber": 2
+  "beef|drama|cancelled|canceled|apolog": 1.5
+  "gambling|gamble|casino|slots": 1.5
+  "007|James Bond": 1
+  "Tarkov": 1
+  "Bungulator|bungulators|bungus": 1
+  "donation|dono|subs|gifted": 0.8
+  "botting|viewbot|bots": 2
+
+hype_tokens: ["LMAO", "LMFAO", "KEKW", "OMEGALUL", "LUL", "ICANT", "HAHA", "XD", "CLIP", "NO WAY",
+              "WTF", "BRO", "W PEANUT", "L PEANUT", "💀", "😭", "😂", "🤣", ":face-with-tears-of-joy:", ":skull:"]
+
+# Vertical layout. Run "calibrate" once to set the avatar/gameplay boxes by dragging.
+layout:
+  mode: blurfit          # blurfit = whole stream centered on a blurred copy | stack = peanut on top, gameplay below
+  top_height: 760        # stack mode: height of the peanut panel (out of 1920)
+  avatar:   {x: 0.70, y: 0.50, w: 0.30, h: 0.50}   # fractions of the source frame
+  gameplay: {x: 0.15, y: 0.00, w: 0.70, h: 1.00}
+
+captions:
+  enabled: false        # controlled from the app's Settings screen
+  font: Arial Black      # any font installed on your PC (Impact, Anton, Arial Black...)
+  size: 84
+  words_per_line: 3
+  color: "&H00FFFFFF"     # white   (ASS colours are &H00BBGGRR)
+  highlight: "&H0000E5FF" # yellow  - the word being spoken
+  outline: 7
+
+titles:
+  use_claude: auto       # auto = use Claude if ANTHROPIC_API_KEY is set, otherwise a simple template
+  model: claude-haiku-5-5
+  # Your best-performing titles - Claude copies this style.
+  examples:
+    - "PEANUT CANT USE HIS 007 INTRO ANYMORE"
+    - "MR BEAST TRIED TO MAKE PEANUT FACE REVEAL"
+    - "PEANUT GETS AWKWARD AROUND GAMER GIRLS"
+    - "PEANUT EXPLAINS WHY HE DOESNT STREAM TARKOV"
+    - "DILLON DANIS RETURNS...PEANUT FLAMES HIM"
+    - "Peanut Runs Into A Karen | Rust Highlights"
+
+upload:
+  privacy: private       # uploads stay private until their scheduled time
+  schedule: true         # false = upload now as the privacy above
+  timezone: America/Los_Angeles
+  schedule_times: ["11:45", "16:30", "20:15"]   # up to this many Shorts per day
+  category_id: "20"      # Gaming
+  made_for_kids: false
+
+twitch:
+  # Free from https://dev.twitch.tv/console/apps (or set TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET)
+  client_id: ""
+  client_secret: ""

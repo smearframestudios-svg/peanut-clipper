@@ -1,0 +1,111 @@
+"""Downloads a stream VOD (YouTube or Twitch) plus its chat replay."""
+import re
+import shutil
+import subprocess
+from pathlib import Path
+
+from .util import hms, need
+
+
+def is_url(s):
+    return str(s).startswith(("http://", "https://"))
+
+
+def cache_key(url, start=None, end=None):
+    m = re.search(r"(?:v=|youtu\.be/|/live/|/videos/|/shorts/)([\w-]{6,})", url)
+    vid = m.group(1) if m else re.sub(r"\W+", "_", url)[-40:]
+    rng = f"_{int(start or 0)}-{int(end) if end else 'end'}" if (start or end) else ""
+    return vid + rng
+
+
+def _yt_dlp():
+    return [need("yt-dlp", "Run setup.bat (it installs yt-dlp).")]
+
+
+def download_video(url, job_dir, cfg, start=None, end=None):
+    done = [p for p in job_dir.glob("source.*") if p.suffix in (".mp4", ".mkv", ".webm") and p.stat().st_size > 1_000_000]
+    if done:
+        print(f"  using the video downloaded earlier ({done[0].stat().st_size // 1_000_000} MB)")
+        return done[0]
+    status = subprocess.run(_yt_dlp() + ["--no-playlist", "--skip-download", "--print", "live_status", url],
+                            capture_output=True, text=True).stdout.strip().splitlines()
+    status = status[-1] if status else ""
+    if status in ("is_live", "is_upcoming", "post_live"):
+        msg = {"is_live": "is LIVE right now", "is_upcoming": "hasn't started yet",
+               "post_live": "just ended and YouTube is still processing it"}[status]
+        raise SystemExit(f"\n[!] That stream {msg}. Wait until it's a finished replay "
+                         f"(usually a few hours after it ends), or use an older stream from the Live tab.\n")
+    h = int(cfg["download"]["max_height"])
+    cmd = _yt_dlp() + [
+        "-f", f"bv*[height<={h}]+ba/b[height<={h}]/bv*+ba/b",
+        "--merge-output-format", "mp4",
+        "-o", str(job_dir / "source.%(ext)s"), "--no-playlist",
+    ]
+    if start is not None or end is not None:
+        try:
+            print("  downloading just the part you asked for...")
+            subprocess.run(cmd + ["--download-sections", f"*{hms(start or 0)}-{hms(end) if end else 'inf'}",
+                                  url], check=True)
+        except subprocess.CalledProcessError:
+            print("  [!] partial download failed - downloading the whole video and cutting it here instead...")
+            for f in job_dir.glob("source.*"):
+                f.unlink()
+            full_cmd = [c if not str(c).endswith("source.%(ext)s") else str(job_dir / "full.%(ext)s") for c in cmd]
+            subprocess.run(full_cmd + [url], check=True)
+            full = max(job_dir.glob("full.*"), key=lambda p: p.stat().st_size)
+            cut = ["ffmpeg", "-v", "error", "-y", "-ss", str(start or 0), "-i", str(full)]
+            if end:
+                cut += ["-t", str(end - (start or 0))]
+            subprocess.run(cut + ["-c", "copy", str(job_dir / "source.mp4")], check=True)
+            full.unlink()
+    else:
+        print("  downloading video (big streams take a while)...")
+        subprocess.run(cmd + [url], check=True)
+    files = sorted([p for p in job_dir.glob("source.*") if p.suffix in (".mp4", ".mkv", ".webm")], key=lambda p: p.stat().st_size, reverse=True)
+    if not files:
+        raise RuntimeError("yt-dlp finished but no video file was found")
+    return files[0]
+
+
+def download_chat(url, job_dir, start=None, end=None):
+    """Returns a chat file path or None. YouTube: yt-dlp live_chat. Twitch: TwitchDownloaderCLI if installed."""
+    if "youtube.com" in url or "youtu.be" in url:
+        found = list(job_dir.glob("chat*.live_chat.json"))
+        if found:
+            return found[0]
+        if (job_dir / "no_chat").exists():
+            return None
+        print("  downloading YouTube live chat replay...")
+        try:
+            subprocess.run(_yt_dlp() + ["--skip-download", "--write-subs", "--sub-langs", "live_chat",
+                                        "-o", str(job_dir / "chat"), "--no-playlist", url], check=True)
+        except subprocess.CalledProcessError:
+            print("  [!] no chat replay available - continuing with audio + speech only")
+            return None
+        found = list(job_dir.glob("chat*.live_chat.json"))
+        if not found:
+            (job_dir / "no_chat").touch()
+            print("  [!] this video has no chat replay (it's probably a normal upload, not a stream).")
+        return found[0] if found else None
+
+    m = re.search(r"twitch\.tv/videos/(\d+)", url)
+    if m:
+        exe = shutil.which("TwitchDownloaderCLI")
+        if not exe:
+            print("  [!] TwitchDownloaderCLI not found - skipping Twitch chat (see README)")
+            return None
+        out = job_dir / "chat.json"
+        cmd = [exe, "chatdownload", "--id", m.group(1), "-o", str(out), "--collision", "Overwrite"]
+        if start:
+            cmd += ["-b", str(int(start))]
+        if end:
+            cmd += ["-e", str(int(end))]
+        print("  downloading Twitch chat...")
+        subprocess.run(cmd, check=True)
+        return out if out.exists() else None
+    return None
+
+
+def download_url(url, out_path):
+    subprocess.run(_yt_dlp() + ["-f", "best[ext=mp4]/best", "-o", str(out_path), url], check=True)
+    return Path(out_path)

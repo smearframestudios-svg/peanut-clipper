@@ -1,0 +1,9 @@
+faster-whisper>=1.0
+yt-dlp[default]
+numpy
+pyyaml
+requests
+anthropic
+google-api-python-client
+google-auth-oauthlib
+tzdata

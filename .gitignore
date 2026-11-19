@@ -1,0 +1,10 @@
+.venv/
+bin/
+data/
+work/
+output/
+exports/
+clipper.new/
+clipper.old/
+__pycache__/
+*.pyc
