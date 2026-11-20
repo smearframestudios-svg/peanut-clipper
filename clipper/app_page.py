@@ -99,6 +99,20 @@ a{color:var(--blue)}
 .fr-stage{position:relative;flex:1;min-width:0;user-select:none;cursor:crosshair}.fr-stage canvas{width:100%;display:block;border-radius:8px;background:#0c0d0f}
 .fr-side{width:300px;flex:none;display:flex;flex-direction:column;gap:8px}
 .fr-prev{display:flex;justify-content:center}.fr-prev canvas{width:150px;border-radius:8px;background:#000}
+.sec-tl{position:relative;height:34px;margin:2px 0 6px;background:#0c0d0f;border:1px solid var(--line);border-radius:8px;user-select:none;overflow:hidden}
+.sec-tl .pc{position:absolute;top:3px;bottom:3px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;color:#111;padding:0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:28px;border:2px solid transparent}
+.sec-tl .pc.normal{background:#3a3d46;color:#cfd1d6}.sec-tl .pc.closeup{background:#ff4fb3}.sec-tl .pc.gameplay{background:#3fa9ff}
+.sec-tl .pc.on{border-color:#fff;box-shadow:0 0 0 2px var(--acc)}
+.sec-tl .pc.nob{background-image:repeating-linear-gradient(45deg,#0003 0 6px,transparent 6px 12px)}
+.sec-tl .cut{position:absolute;top:0;bottom:0;width:10px;margin-left:-5px;cursor:pointer;z-index:2}
+.sec-tl .cut::before{content:"";position:absolute;left:4px;top:0;bottom:0;width:2px;background:#fff}
+.sec-tl .sph{position:absolute;top:0;bottom:0;width:2px;background:#fff8;pointer-events:none}
+.sec-tools{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.sec-tools .seg button{padding:7px 11px;font-size:13px}.sec-tools .btn{padding:7px 11px;font-size:13px}
+.sec-box{display:flex;gap:14px;align-items:flex-start;margin-top:10px}
+.sec-box .fr-stage{max-width:560px}
+.ed-side .live{width:100%;aspect-ratio:9/16;border-radius:10px;background:#000;display:block}
+.ed-side .btn{padding:7px 10px;font-size:13px;width:100%;margin-top:6px}
 .ed-foot{display:flex;align-items:center;gap:12px;margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
 .ov{display:flex;align-items:center;gap:12px;background:var(--panel2);border-radius:10px;padding:10px;margin-bottom:8px}
 .ov img{width:54px;height:96px;object-fit:contain;background:repeating-conic-gradient(#333 0 25%,#222 0 50%) 0 0/12px 12px;border-radius:6px}
@@ -338,6 +352,25 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
         <label class="toggle"><input type="checkbox" id="mkSnap" checked> Snap to markers</label>
         <button class="btn" id="mkClear">Clear markers</button>
         <span class="tiny mute"><b>Markers:</b> click one to jump there, right-click to remove it.</span></div>
+      <div class="sec-tools">
+        <div class="row"><b>Sections</b><span class="tiny mute">Cut the Short into parts, then pick how each part looks - like a razor cut in Premiere.</span></div>
+        <div class="sec-tl" id="secTl"></div>
+        <div class="row"><button class="btn" id="secCut">&#9986; Cut at playhead <span class="tiny mute">(C)</span></button>
+          <button class="btn" id="secJoin">Remove cut before this part</button>
+          <button class="btn" id="secClear">Remove all cuts</button>
+          <span class="tiny mute"><b>Part:</b> <span id="secWhich">click a part on the bar</span></span></div>
+        <div class="row" style="margin-top:8px"><span class="tiny mute" style="min-width:52px">Look</span>
+          <span class="seg" id="secLook"><button data-v="normal">Normal (layout)</button><button data-v="closeup">Close-up on Peanut</button><button data-v="gameplay">Gameplay only</button></span>
+          <span class="tiny mute" style="margin-left:10px">Banner</span>
+          <span class="seg" id="secBan"><button data-v="layout">Layout spot</button><button data-v="bottom">Bottom</button><button data-v="top">Top</button><button data-v="off">Off</button></span></div>
+        <div class="sec-box" id="secBoxWrap" style="display:none">
+          <div class="fr-stage" id="secStage"><canvas id="secCan" width="960" height="540"></canvas><div class="box av" id="secBox"></div></div>
+          <div style="width:260px" class="tiny mute"><b id="secBoxT">Close-up area</b><br><b>Move:</b> drag inside the box. <b>Redraw:</b> drag on the frame.
+            <label style="display:block;margin-top:8px"><b>Zoom:</b> smaller = closer <input type="range" id="secZoom" min="5" max="100" step="1" style="width:100%"></label>
+            <button class="btn" id="secBoxReset" style="margin-top:6px">Reset area</button>
+            <button class="btn" id="secBoxAll" style="margin-top:6px">Use this area for every part with this look</button></div>
+        </div>
+      </div>
       <div class="fr-wrap">
         <button class="btn" id="frToggle">Framing for this Short &#9662;</button> <span class="tiny mute" id="frState"></span>
         <div id="frPanel" style="display:none">
@@ -358,7 +391,10 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
         </div>
       </div>
     </div>
-    <div class="ed-side"><div class="tiny mute" style="margin-bottom:6px">Current Short</div><video id="edShort" controls preload="none"></video></div>
+    <div class="ed-side"><div class="tiny mute" style="margin-bottom:6px">Live preview <span id="liveWhat"></span></div><canvas class="live" id="live" width="540" height="960"></canvas>
+      <button class="btn" id="shotShort">&#128247; Screenshot (Short) <span class="tiny mute">Ctrl+Shift+E</span></button>
+      <button class="btn" id="shotStream">&#128247; Screenshot (full stream frame)</button>
+      <div class="tiny mute" style="margin:14px 0 6px">Current Short</div><video id="edShort" controls preload="none"></video></div>
   </div>
   <div class="ed-foot"><span class="tiny mute" id="edNote">Drag the yellow handles, or click the bar to jump there. Shorts can be up to 3 minutes.</span>
     <span style="margin-left:auto" class="row"><span class="tiny mute">Layout</span><select id="edLayout"></select>
@@ -655,7 +691,7 @@ async function openEditor(c){
   E={job:c.job,id:c.id,off,dur:info.duration,a:info.start-off,b:info.end-off,oa:info.start-off,ob:info.end-off,pad:60};
   setView();updateLayoutMenus();
   const src=(LY||S.layouts);$('edLayout').value=src.layouts.some(l=>l.id===info.layout)?info.layout:src.default;
-  frInit(info.framing||null);E.mk=(info.markers||[]).map(t=>t-off).filter(t=>t>=0&&t<=E.dur);
+  frInit(info.framing||null);E.mk=(info.markers||[]).map(t=>t-off).filter(t=>t>=0&&t<=E.dur);secInit(info.sections);
   $('edTitle').textContent=c.title;$('edSrc').src=`/source/${c.job}/${c.id}`;
   $('edShort').src=`/media/${c.job}/${info.file}`;$('edShort').poster=`/media/${c.job}/${info.poster}`;
   $('ed').classList.add('on');
@@ -682,6 +718,7 @@ function drawTL(){
     tl.appendChild(m)}
   const ph=$('edSrc').currentTime||E.a;$('tlPh').style.left=X(ph)+'%';
   $('vIn').textContent=fmt(E.a+E.off);$('vOut').textContent=fmt(E.b+E.off);
+  secDraw();
   const len=E.b-E.a;$('edLen').textContent=`${len.toFixed(1)}s long`+(Math.abs(E.a-E.oa)>.05||Math.abs(E.b-E.ob)>.05?' (changed)':'');
   $('edLen').style.color=len>180?'var(--no)':'';
 }
@@ -724,7 +761,11 @@ $('mkClear').onclick=()=>{if(!E||!E.mk.length)return;if(!confirm('Remove all mar
 $('mkSnap').onchange=()=>drawTL();
 window.addEventListener('keydown',e=>{if(!E||!$('ed').classList.contains('on'))return;
   if(/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)&&document.activeElement.type!=='checkbox'&&document.activeElement.type!=='radio'&&document.activeElement.type!=='range')return;
-  if(e.key==='m'||e.key==='M'){e.preventDefault();mkAdd()}});
+  if((e.ctrlKey||e.metaKey)&&e.shiftKey&&(e.key==='e'||e.key==='E')){e.preventDefault();shot(true);return}
+  if((e.ctrlKey||e.metaKey)&&(e.key==='k'||e.key==='K')){e.preventDefault();secCut();return}
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  if(e.key==='m'||e.key==='M'){e.preventDefault();mkAdd()}
+  if(e.key==='c'||e.key==='C'){e.preventDefault();secCut()}});
 let stopAt=null;
 $('edSrc').addEventListener('timeupdate',()=>{if(!E)return;if(stopAt!==null&&$('edSrc').currentTime>=stopAt){$('edSrc').pause();stopAt=null}drawTL()});
 $('edPlaySel').onclick=()=>{$('edSrc').currentTime=E.a;stopAt=E.b;$('edSrc').play()};
@@ -736,9 +777,115 @@ $('edSave').onclick=async()=>{if(!E||edSaving)return;
   edSaving=true;$('edSave').disabled=true;$('edSave').textContent='Updating...';$('edSrc').pause();
   // let go of the current Short's file so Windows can replace it
   {const v=$('edShort');E.shortSrc=v.getAttribute('src');v.pause();v.removeAttribute('src');v.load()}
-  try{const r=await api('/api/run',{kind:'rerender',job:E.job,id:E.id,start:E.a+E.off,end:E.b+E.off,layout:$('edLayout').value,framing:frSend()});
+  try{const r=await api('/api/run',{kind:'rerender',job:E.job,id:E.id,start:E.a+E.off,end:E.b+E.off,layout:$('edLayout').value,framing:frSend(),sections:secSend()});
     if(r.queued){edSaving=false;$('edSave').disabled=false;$('edSave').textContent='Update Short';closeEditor();toast('<b>In line:</b> this Short updates when the current job finishes.');poll();return}
     lastJobKey='running';poll()}catch(e){edSaving=false;$('edSave').disabled=false;$('edSave').textContent='Update Short'}};
+
+// ---------- sections (trim editor): razor cuts, and each part's look + banner spot ----------
+// E.cuts = cut points (video times). E.parts = the settings of parts as last chosen: [{start,end,look,banner,box}]
+let secSel=-1,secTimer=null,secDrag=null,liveRAF=null;
+const LOOKNAME={normal:'Normal',closeup:'Close-up',gameplay:'Gameplay only'},BANNAME={layout:'banner: layout',bottom:'banner: bottom',top:'banner: top',off:'no banner'};
+function secInit(list){const off=E.off;E.parts=(list||[]).map(x=>Object.assign({},x,{start:x.start-off,end:x.end-off}));
+  const cs=new Set();for(const x of E.parts){cs.add(+x.start.toFixed(2));cs.add(+x.end.toFixed(2))}
+  E.cuts=[...cs].sort((a,b)=>a-b);secSel=-1}
+// the parts of the Short right now: from Start to End, split at every cut inside it
+function pieces(){if(!E)return[];const pts=[E.a,...E.cuts.filter(t=>t>E.a+.05&&t<E.b-.05),E.b];const out=[];
+  for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],m=(a+b)/2;
+    const st=(E.parts||[]).find(x=>x.start<=m&&x.end>m)||{};
+    out.push({start:a,end:b,look:st.look||'normal',banner:st.banner||'layout',box:st.box||null})}
+  return out}
+function secSet(list){E.parts=list.map(x=>Object.assign({},x));secSave();secDraw();liveDraw()}
+function secSend(){return pieces().map(x=>Object.assign({},x,{start:+(x.start+E.off).toFixed(2),end:+(x.end+E.off).toFixed(2)}))}
+function secSave(){clearTimeout(secTimer);const job=E.job,id=E.id,list=secSend();
+  secTimer=setTimeout(()=>api('/api/sections',{job,id,sections:list}).catch(()=>{}),400)}
+function pieceAt(t){const ps=pieces();let i=ps.findIndex(p=>t>=p.start&&t<p.end);if(i<0)i=t>=E.b?ps.length-1:0;return i}
+function secDraw(){if(!E)return;const tl=$('secTl');tl.innerHTML='';const ps=pieces();
+  if(secSel>=ps.length)secSel=ps.length-1;
+  ps.forEach((p,i)=>{const d=document.createElement('div');d.className='pc '+p.look+(p.banner==='off'?' nob':'')+(i===secSel?' on':'');
+    d.style.left=X(p.start)+'%';d.style.width=Math.max(.3,X(p.end)-X(p.start))+'%';
+    d.textContent=LOOKNAME[p.look]+' · '+BANNAME[p.banner];d.title=fmt(p.start+E.off)+' - '+fmt(p.end+E.off)+'  '+d.textContent;
+    d.onclick=e=>{e.stopPropagation();secSel=i;const v=$('edSrc');if(v.currentTime<p.start||v.currentTime>=p.end)v.currentTime=p.start+.01;secDraw();liveDraw()};
+    tl.appendChild(d)});
+  for(const t of E.cuts){if(t<=E.a+.05||t>=E.b-.05||t<E.vs||t>E.ve)continue;const c=document.createElement('div');c.className='cut';c.style.left=X(t)+'%';
+    c.title='Cut at '+fmt(t+E.off)+' - right-click to remove';
+    c.onclick=e=>{e.stopPropagation();$('edSrc').currentTime=t;drawTL()};
+    c.oncontextmenu=e=>{e.preventDefault();e.stopPropagation();secRemoveCut(t)};tl.appendChild(c)}
+  const ph=document.createElement('div');ph.className='sph';ph.style.left=X($('edSrc').currentTime||E.a)+'%';tl.appendChild(ph);
+  const p=ps[secSel];
+  $('secWhich').textContent=p?`${secSel+1} of ${ps.length} (${fmt(p.start+E.off)} - ${fmt(p.end+E.off)}, ${(p.end-p.start).toFixed(1)}s)`:'click a part on the bar';
+  document.querySelectorAll('#secLook button').forEach(b=>{b.classList.toggle('on',!!p&&b.dataset.v===p.look);b.disabled=!p});
+  document.querySelectorAll('#secBan button').forEach(b=>{b.classList.toggle('on',!!p&&b.dataset.v===p.banner);b.disabled=!p});
+  $('secJoin').disabled=!p||secSel===0;
+  const showBox=!!p&&p.look!=='normal';$('secBoxWrap').style.display=showBox?'':'none';
+  if(showBox){$('secBoxT').textContent=p.look==='closeup'?'Close-up area (what fills the screen)':'Gameplay area (what fills the screen)';secBoxDraw()}}
+function secCut(){if(!E)return;const t=+($('edSrc').currentTime||0).toFixed(2);
+  if(t<=E.a+.3||t>=E.b-.3){toast('Move the playhead inside the Short first (between Start and End).');return}
+  if(E.cuts.some(c=>Math.abs(c-t)<.2)){toast('There\'s already a cut there.');return}
+  const ps=pieces();E.cuts.push(t);E.cuts.sort((a,b)=>a-b);
+  // both halves keep the look the part had
+  secSet(ps);secSel=pieceAt(t+.01);secDraw()}
+function secRemoveCut(t){const ps=pieces();const i=ps.findIndex(p=>Math.abs(p.start-t)<.01);E.cuts=E.cuts.filter(c=>Math.abs(c-t)>=.01);
+  if(i>0){ps[i-1].end=ps[i].end;ps.splice(i,1)}secSel=Math.max(0,i-1);secSet(ps)}
+$('secCut').onclick=secCut;
+$('secJoin').onclick=()=>{const p=pieces()[secSel];if(p&&secSel>0)secRemoveCut(p.start)};
+$('secClear').onclick=()=>{if(!E||!E.cuts.length&&!(E.parts||[]).length)return;if(!confirm('Remove all cuts and go back to one normal part?'))return;E.cuts=[];secSel=-1;secSet([])};
+function secChange(k,v){const ps=pieces(),p=ps[secSel];if(!p)return;p[k]=v;
+  if(k==='look'){if(v==='normal')p.box=null;else if(p.banner==='layout')p.banner='bottom';
+    if(v!=='normal'){const same=ps.find(q=>q!==p&&q.look===v&&q.box);p.box=same?clone(same.box):null}}
+  secSet(ps)}
+document.querySelectorAll('#secLook button').forEach(b=>b.onclick=()=>secChange('look',b.dataset.v));
+document.querySelectorAll('#secBan button').forEach(b=>b.onclick=()=>secChange('banner',b.dataset.v));
+// the area of the stream a close-up / gameplay-only part shows
+const defBox=look=>clone((F&&F[look==='closeup'?'avatar':'gameplay'])||{x:0,y:0,w:1,h:1});
+const pBox=p=>p.box||defBox(p.look);
+function secBoxDraw(){const p=pieces()[secSel];if(!p||p.look==='normal')return;const v=$('edSrc'),c=$('secCan'),x=c.getContext('2d');
+  if(v.videoWidth){c.width=960;c.height=Math.round(960*v.videoHeight/v.videoWidth);x.drawImage(v,0,0,c.width,c.height)}
+  const b=pBox(p),e=$('secBox');e.className='box '+(p.look==='closeup'?'av':'gp');
+  e.style.left=b.x*100+'%';e.style.top=b.y*100+'%';e.style.width=b.w*100+'%';e.style.height=b.h*100+'%';$('secZoom').value=Math.round(b.w*100)}
+function secBoxSet(b,save){const ps=pieces(),p=ps[secSel];if(!p)return;p.box=b;E.parts=ps;if(save)secSave();secBoxDraw();liveDraw()}
+const secPos=e=>{const r=$('secStage').getBoundingClientRect();return[Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))]};
+$('secStage').onmousedown=e=>{const p=pieces()[secSel];if(!p||p.look==='normal')return;e.preventDefault();const q=secPos(e),b=pBox(p);
+  secDrag=(q[0]>=b.x&&q[0]<=b.x+b.w&&q[1]>=b.y&&q[1]<=b.y+b.h)?{move:true,dx:q[0]-b.x,dy:q[1]-b.y,b:clone(b)}:{move:false,s:q}};
+window.addEventListener('mousemove',e=>{if(!secDrag)return;const q=secPos(e);let b;
+  if(secDrag.move){const o=secDrag.b;b={w:o.w,h:o.h,x:Math.min(1-o.w,Math.max(0,q[0]-secDrag.dx)),y:Math.min(1-o.h,Math.max(0,q[1]-secDrag.dy))}}
+  else b={x:Math.min(secDrag.s[0],q[0]),y:Math.min(secDrag.s[1],q[1]),w:Math.max(.03,Math.abs(q[0]-secDrag.s[0])),h:Math.max(.03,Math.abs(q[1]-secDrag.s[1]))};
+  secBoxSet(b,false)});
+window.addEventListener('mouseup',()=>{if(secDrag){secDrag=null;secSave()}});
+$('secZoom').oninput=()=>{const p=pieces()[secSel];if(!p)return;const b=pBox(p),cx=b.x+b.w/2,cy=b.y+b.h/2,ar=b.h/b.w;
+  let w=Math.min(1,+$('secZoom').value/100),h=Math.min(1,w*ar);w=h/ar;
+  secBoxSet({w,h,x:Math.min(1-w,Math.max(0,cx-w/2)),y:Math.min(1-h,Math.max(0,cy-h/2))},true)};
+$('secBoxReset').onclick=()=>{const p=pieces()[secSel];if(p)secBoxSet(null,true)};
+$('secBoxAll').onclick=()=>{const ps=pieces(),p=ps[secSel];if(!p)return;const b=clone(pBox(p));ps.forEach(q=>{if(q.look===p.look)q.box=clone(b)});secSet(ps);toast('<b>Done:</b> every '+LOOKNAME[p.look].toLowerCase()+' part uses this area.')};
+
+// ---------- live preview: the Short as it will look at the playhead ----------
+function liveDraw(){if(!E||!F)return;const v=$('edSrc'),c=$('live'),y=c.getContext('2d'),PW=c.width,PH=c.height,W=v.videoWidth,H=v.videoHeight;
+  y.fillStyle='#000';y.fillRect(0,0,PW,PH);if(!W)return;
+  const t=v.currentTime,inside=t>=E.a&&t<=E.b,p=pieces()[pieceAt(t)]||{look:'normal',banner:'layout'};
+  $('liveWhat').textContent=inside?'· '+LOOKNAME[p.look]+', '+BANNAME[p.banner]:'· (playhead is outside the Short)';
+  const cover=(b,dy,dh)=>{let sx=b.x*W,sy=b.y*H,sw=b.w*W,sh=b.h*H;const r=PW/dh;
+    if(sw/sh>r){const nw=sh*r;sx+=(sw-nw)/2;sw=nw}else{const nh=sw/r;sy+=(sh-nh)/2;sh=nh}y.drawImage(v,sx,sy,sw,sh,0,dy,PW,dh)};
+  let seam;
+  if(p.look!=='normal'){cover(pBox(p),0,PH);seam=PH/2}
+  else{const top=F.top_height/1920*PH;
+    if(F.mode==='stack'){cover(F.avatar,0,top);cover(F.gameplay,top,PH-top);seam=top}
+    else if(F.mode==='single'){cover(F.gameplay,0,PH);seam=PH/2}
+    else{y.filter='blur(10px) brightness(0.8)';cover({x:0,y:0,w:1,h:1},0,PH);y.filter='none';const h=PW*H/W;y.drawImage(v,0,(PH-h)/2,PW,h);seam=(PH-h)/2}}
+  if(p.banner==='off')return;const lay=frLay(),k=PW/1080;
+  for(const o of (S.settings.overlays||[])){const on=lay.banners==null?o.enabled!==false:lay.banners.includes(o.file);
+    if(!on||!/\.(png|webp|jpe?g)$/i.test(o.file))continue;const im=ovImgs[o.file];
+    if(!im){const n=ovImgs[o.file]=new Image();n.onload=liveDraw;n.src='/overlay/'+encodeURIComponent(o.file);continue}
+    if(!im.complete||!im.naturalWidth)continue;if(o.position==='full'){y.drawImage(im,0,0,PW,PH);continue}
+    const pos=p.banner==='layout'?o.position:p.banner,off=p.banner==='layout'?(o.offset||0)*k:0,h=PW*im.naturalHeight/im.naturalWidth;
+    y.drawImage(im,0,(pos==='top'?0:pos==='bottom'?PH-h:seam-h/2)+off,PW,h)}}
+function liveLoop(){liveDraw();if(!$('edSrc').paused)liveRAF=requestAnimationFrame(liveLoop);else liveRAF=null}
+$('edSrc').addEventListener('play',()=>{if(!liveRAF)liveRAF=requestAnimationFrame(liveLoop)});
+['seeked','loadeddata','pause'].forEach(ev=>$('edSrc').addEventListener(ev,()=>{liveDraw();if(secSel>=0)secBoxDraw()}));
+
+// ---------- screenshot of the frame at the playhead ----------
+async function shot(vertical){if(!E)return;$('edSrc').pause();const at=+(($('edSrc').currentTime||0)+E.off).toFixed(3);
+  try{const r=await api('/api/snapshot',{job:E.job,id:E.id,at,vertical,layout:$('edLayout').value,framing:frSend(),sections:secSend()});
+    toast(`<b>Screenshot saved:</b> ${esc(r.name)}<br><span class="tiny mute">${esc(r.folder)}</span><br><button class="link" onclick="api('/api/open_folder',{path:${esc(JSON.stringify(r.folder)).replace(/'/g,'&#39;')}})">Open the folder</button>`)}catch(e){}}
+$('shotShort').onclick=()=>shot(true);$('shotStream').onclick=()=>shot(false);
 
 // ---------- framing for one Short (trim editor) ----------
 // F = this Short's framing (boxes, style, Peanut height). Starts from its own saved framing, else its layout.
@@ -757,7 +904,7 @@ function frSync(){if(!F)return;
   document.querySelector('[name=frw][value=avatar]').parentElement.style.display=F.mode==='stack'?'':'none';
   const b=F[frSel()];$('frZoom').value=Math.round(b.w*100);frDraw()}
 const frSel=()=>document.querySelector('[name=frw]:checked').value;
-function frDraw(){if(!F||$('frPanel').style.display==='none')return;
+function frDraw(){liveDraw();if(!F||$('frPanel').style.display==='none')return;
   const v=$('edSrc'),W=v.videoWidth,H=v.videoHeight,c=$('frCan'),x=c.getContext('2d');
   if(W){c.width=960;c.height=Math.round(960*H/W);x.drawImage(v,0,0,c.width,c.height)}
   for(const k of ['avatar','gameplay']){const b=F[k],e=$('f_'+k);

@@ -137,13 +137,39 @@ def save_markers(cfg, job, cid, markers):
     save_json(f, data)
 
 
+def clean_sections(sections):
+    """Trim-editor sections for one Short: seconds in the stream, each with a look and a banner spot."""
+    from .render import BANNERS, LOOKS
+    out = []
+    for sec in (sections or [])[:100]:
+        a, b = round(float(sec["start"]), 2), round(float(sec["end"]), 2)
+        if b - a < 0.1:
+            continue
+        item = {"start": a, "end": b,
+                "look": sec.get("look") if sec.get("look") in LOOKS else "normal",
+                "banner": sec.get("banner") if sec.get("banner") in BANNERS else "layout"}
+        bx = sec.get("box")
+        if isinstance(bx, dict) and item["look"] != "normal":
+            w, h = (max(0.02, min(1.0, float(bx.get(q, 0.5)))) for q in ("w", "h"))
+            item["box"] = {"w": w, "h": h, "x": max(0.0, min(1.0 - w, float(bx.get("x", 0)))),
+                           "y": max(0.0, min(1.0 - h, float(bx.get("y", 0))))}
+        out.append(item)
+    return sorted(out, key=lambda x: x["start"])
+
+
+def save_sections(cfg, job, cid, sections):
+    f, data, c = _find(cfg, job, cid)
+    c["sections"] = clean_sections(sections)
+    save_json(f, data)
+
+
 def source_info(cfg, job, cid):
     f, data, c = _find(cfg, job, cid)
     src = Path(c.get("source_file", ""))
     if not c.get("source_file") or not src.exists():
         return {"available": False}
     from .download import needs_sync_fix
-    info = {"available": True, "layout": c.get("layout"), "framing": c.get("framing"), "markers": c.get("markers", []), "start": c["src_start"], "end": c["src_end"],
+    info = {"available": True, "layout": c.get("layout"), "framing": c.get("framing"), "markers": c.get("markers", []), "sections": c.get("sections", []), "start": c["src_start"], "end": c["src_end"],
             "file": c["file"], "poster": c["poster"], "title": c["title"], "offset": 0}
     if needs_sync_fix(src):
         win = edit_win(c)
@@ -196,7 +222,7 @@ def clean_framing(fr):
     return out
 
 
-def rerender(cfg, job, cid, start, end, layout=None, framing=None):
+def rerender(cfg, job, cid, start, end, layout=None, framing=None, sections=None):
     from .render import render_short
     from .transcribe import transcribe_range
     from .util import apply_layout
@@ -208,6 +234,8 @@ def rerender(cfg, job, cid, start, end, layout=None, framing=None):
         c["framing"] = clean_framing(json.loads(framing) if isinstance(framing, str) else framing)
     if c.get("framing"):
         cfg["layout"].update(c["framing"])     # this Short's own boxes win over the layout's
+    if sections is not None:
+        c["sections"] = clean_sections(json.loads(sections) if isinstance(sections, str) else sections)
     src = Path(c.get("source_file", ""))
     if not src.exists():
         raise SystemExit("[!] The full stream for this Short was already deleted, so it can't be re-cut.")
@@ -233,7 +261,8 @@ def rerender(cfg, job, cid, start, end, layout=None, framing=None):
     ver = int(c.get("version", 1)) + 1
     name = f"clip_{cid}_v{ver}.mp4"
     print("@@ 40 Rendering", flush=True)
-    mp4, jpg = render_short(src, start - off, end - off, f.parent / name, words, cfg, sw, sh)
+    secs = [dict(x, start=x["start"] - off, end=x["end"] - off) for x in c.get("sections", [])]
+    mp4, jpg = render_short(src, start - off, end - off, f.parent / name, words, cfg, sw, sh, secs)
     old = dict(c)
     shift = start - c["src_start"]
     c.update(file=mp4.name, poster=jpg.name, version=ver, src_start=round(start, 2), src_end=round(end, 2),
@@ -244,6 +273,40 @@ def rerender(cfg, job, cid, start, end, layout=None, framing=None):
     if old.get("file") != c["file"]:
         delete_files(f.parent, old)           # the previous version, only once the new one is saved
     print("@@ 100 Short updated", flush=True)
+
+
+def snapshot(cfg, job, cid, at, vertical=True, layout=None, framing=None, sections=None):
+    """Screenshot of the frame at `at` (seconds in the stream) as a full-size PNG in the export folder."""
+    from .download import needs_sync_fix
+    from .render import snapshot as shot
+    from .util import apply_layout
+    st = cfg["settings"]
+    f, data, c = _find(cfg, job, cid)
+    apply_layout(cfg, layout or c.get("layout"))
+    fr = c.get("framing") if framing is None else (None if framing == "none" else clean_framing(framing))
+    if fr:
+        cfg["layout"].update(fr)
+    src = Path(c.get("source_file", ""))
+    if not src.is_file():
+        raise SystemExit("[!] The full stream for this Short was already deleted.")
+    off = 0.0
+    win = edit_win(c, at, at) if needs_sync_fix(src) else None
+    if win:
+        src, off = win[0], win[1]
+    dur, sw, sh = probe(src)
+    secs = clean_sections(c.get("sections", []) if sections is None else sections)
+    sec = next((x for x in secs if x["start"] <= at < x["end"]), None)
+    folder = Path(st.get("export_folder") or (ROOT / "exports")) / "Screenshots"
+    folder.mkdir(parents=True, exist_ok=True)
+    m, s_ = divmod(max(0.0, at - c["src_start"]), 60)
+    base = f"{_safe(c['title'])} - {int(m)}m{s_:04.1f}s" + (" (Short)" if vertical else " (stream)")
+    out = folder / f"{base}.png"
+    n = 2
+    while out.exists():
+        out = folder / f"{base} ({n}).png"
+        n += 1
+    shot(src, min(max(0.0, at - off), max(0.0, dur - 0.05)), out, cfg, sw, sh, sec, vertical)
+    return out
 
 
 def _safe(name):

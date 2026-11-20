@@ -1,5 +1,14 @@
 # What's new
 
+## 1.5.0
+- Sections: in the trim editor, press C (or Ctrl+K) to cut the Short at the playhead, like the razor in Premiere. Click a part on the new Sections bar to pick how it looks.
+- Close-up on Peanut: make any part a full-screen close-up of Peanut's reaction or joke. Drag the pink box to choose exactly what fills the screen.
+- Gameplay only: make any part show just the game, full screen.
+- Banner per part: put the banner in its layout spot, at the bottom, at the top, or turn it off - for just that part.
+- Live preview: the editor shows the Short as it will look at the playhead, so you see each part before you press Update Short.
+- Screenshots: press Ctrl+Shift+E (or the Screenshot button) to save the frame at the playhead as a full-size picture - as it looks in the Short, or the full stream frame. They go in your exports folder under Screenshots.
+- Remove a cut: right-click it, or use "Remove cut before this part". Your cuts are saved as you go.
+
 ## 1.4.2
 - Fixed "The process cannot access the file": re-cutting a Short no longer stops when Windows has the old version open (a preview playing, or Premiere). The new version is saved, and the old one is deleted as soon as it's free (after the next job or when the app starts).
 - Previews don't lock files: videos in the app no longer keep files locked while paused.

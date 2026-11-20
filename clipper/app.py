@@ -396,6 +396,8 @@ def make_handler():
                         args += ["--framing", "none"]
                     elif isinstance(body.get("framing"), dict):
                         args += ["--framing", json.dumps(body["framing"])]
+                    if isinstance(body.get("sections"), list):
+                        args += ["--sections", json.dumps(body["sections"], separators=(",", ":"))]
                     label = "Re-cutting the Short..."
                 elif kind == "export":
                     args = ["export", body["job"], body["id"]] if body.get("id") else ["export", "--all"]
@@ -428,6 +430,23 @@ def make_handler():
                 return self._send(200, {"ok": True})
             if p == "/api/cancel":
                 RUNNER.cancel()
+                return self._send(200, {"ok": True})
+            if p == "/api/sections":
+                library.save_sections(cfg, body["job"], body["id"], body.get("sections") or [])
+                return self._send(200, {"ok": True})
+            if p == "/api/snapshot":
+                try:
+                    out = library.snapshot(cfg, body["job"], body["id"], float(body["at"]), bool(body.get("vertical", True)),
+                                           body.get("layout"), body.get("framing"), body.get("sections"))
+                except SystemExit as e:
+                    return self._send(400, {"error": str(e).replace("[!] ", "")})
+                except Exception as e:  # noqa: BLE001
+                    return self._send(500, {"error": f"Couldn't save the screenshot: {e}"})
+                return self._send(200, {"ok": True, "file": str(out), "folder": str(out.parent), "name": out.name})
+            if p == "/api/open_folder":
+                f = Path(body.get("path", ""))
+                if f.is_dir() and os.name == "nt":
+                    os.startfile(str(f))  # noqa: S606
                 return self._send(200, {"ok": True})
             if p == "/api/markers":
                 library.save_markers(cfg, body["job"], body["id"], body.get("markers") or [])
