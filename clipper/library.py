@@ -119,15 +119,32 @@ def _find(cfg, job, cid):
     raise SystemExit(f"[!] Short {cid} not found")
 
 
+def edit_win(c, start=None, end=None):
+    """The converted part of the stream around this Short, if it's there (and covers start..end): (file, off, end)."""
+    w = c.get("edit_win")
+    if not w or not Path(w["file"]).is_file():
+        return None
+    if start is not None and (start < w["off"] - 0.05 or end > w["end"] + 0.05):
+        return None
+    return Path(w["file"]), w["off"], w["end"]
+
+
 def source_info(cfg, job, cid):
     f, data, c = _find(cfg, job, cid)
     src = Path(c.get("source_file", ""))
     if not c.get("source_file") or not src.exists():
         return {"available": False}
     from .download import needs_sync_fix
+    info = {"available": True, "layout": c.get("layout"), "start": c["src_start"], "end": c["src_end"],
+            "file": c["file"], "poster": c["poster"], "title": c["title"], "offset": 0}
+    if needs_sync_fix(src):
+        win = edit_win(c)
+        if not win:
+            return dict(info, needs_sync=True)
+        # the editor works inside the converted part: times go out and come back with the offset
+        return dict(info, needs_sync=False, offset=win[1], duration=win[2] - win[1])
     dur, w, h = probe(src)
-    return {"available": True, "needs_sync": needs_sync_fix(src), "duration": dur, "layout": c.get("layout"), "start": c["src_start"], "end": c["src_end"],
-            "file": c["file"], "poster": c["poster"], "title": c["title"]}
+    return dict(info, needs_sync=False, duration=dur)
 
 
 def _synced_source(cfg, f, data, src):
@@ -145,9 +162,16 @@ def _synced_source(cfg, f, data, src):
 
 
 def syncfix(cfg, job, cid):
+    """Convert only the half hour around this Short so the editor opens in a minute or two."""
+    from .download import edit_window, needs_sync_fix
     f, data, c = _find(cfg, job, cid)
-    _synced_source(cfg, f, data, Path(c.get("source_file", "")))
-    print("@@ 100 Stream converted - opening the editor", flush=True)
+    src = Path(c.get("source_file", ""))
+    if needs_sync_fix(src) and not edit_win(c):
+        out = src.parent / f"edit_{cid}.mp4"
+        file, off, end = edit_window(src, c["src_start"], c["src_end"], cfg, out)
+        c["edit_win"] = {"file": str(file), "off": off, "end": end}
+        save_json(f, data)
+    print("@@ 100 Ready - opening the editor", flush=True)
 
 
 def rerender(cfg, job, cid, start, end, layout=None):
@@ -159,20 +183,29 @@ def rerender(cfg, job, cid, start, end, layout=None):
     src = Path(c.get("source_file", ""))
     if not src.exists():
         raise SystemExit("[!] The full stream for this Short was already deleted, so it can't be re-cut.")
-    src = _synced_source(cfg, f, data, src)
+    from .download import needs_sync_fix
+    full = src
+    off = 0.0
+    win = edit_win(c, float(start), float(end)) if needs_sync_fix(src) else None
+    if win:
+        src, off = win[0], win[1]          # render from the converted part around the Short (no full conversion)
+    else:
+        src = full = _synced_source(cfg, f, data, src)
     dur, sw, sh = probe(src)
-    start, end = max(0.0, float(start)), min(dur, float(end))
+    start, end = max(off, float(start)), min(off + dur, float(end))
     if end - start < 3:
         raise SystemExit("[!] That's too short - make it at least 3 seconds.")
     print("@@ 10 Re-cutting the Short", flush=True)
     words = []
     if cfg["captions"]["enabled"]:
         cache = Path(data.get("source_dir") or f.parent) / "transcripts.json"
-        words = transcribe_range(src, start, end - start, cfg, cache)["words"]
+        words = transcribe_range(full, start, end - start, cfg, cache)["words"]
+        if off:
+            words = [dict(w, s=w["s"] - off, e=w["e"] - off) for w in words]
     ver = int(c.get("version", 1)) + 1
     name = f"clip_{cid}_v{ver}.mp4"
     print("@@ 40 Rendering", flush=True)
-    mp4, jpg = render_short(src, start, end, f.parent / name, words, cfg, sw, sh)
+    mp4, jpg = render_short(src, start - off, end - off, f.parent / name, words, cfg, sw, sh)
     delete_files(f.parent, dict(c))
     shift = start - c["src_start"]
     c.update(file=mp4.name, poster=jpg.name, version=ver, src_start=round(start, 2), src_end=round(end, 2),

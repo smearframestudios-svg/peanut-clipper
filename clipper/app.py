@@ -275,6 +275,11 @@ def make_handler():
                 try:
                     _, _, c = library._find(cfg, parts[2], parts[3])
                     src = Path(c.get("source_file", ""))
+                    win = library.edit_win(c)
+                    if win and src.is_file():
+                        from .download import needs_sync_fix
+                        if needs_sync_fix(src):
+                            src = win[0]
                     if src.is_file():
                         return self._file(src)
                 except (SystemExit, IndexError, TypeError):

@@ -1,5 +1,10 @@
 # What's new
 
+## 1.3.3
+- Editor opens fast: when a stream comes in a format your graphics card can't play smoothly (AV1), the app now converts only the half hour around the Short you're editing, which takes a minute or two instead of an hour or more for the whole stream.
+- Real progress: converting shows a moving percentage and about how many minutes are left, so it never looks stuck.
+- Re-cutting works from that converted part too, so Update Short doesn't wait for the whole stream either.
+
 ## 1.3.2
 - Update while a job runs: pressing "Update now" during a job no longer stops you. It updates by itself as soon as the job finishes.
 - Easier to read: in "What's new", the first words of each change are bold.

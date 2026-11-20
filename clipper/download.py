@@ -42,6 +42,41 @@ def needs_sync_fix(src):
     return True
 
 
+def _sync_args(cfg):
+    """H.264 settings for converted video (GPU encode when available)."""
+    gpu = cfg.get("render_encoder") == "h264_nvenc"
+    v = (["-c:v", "h264_nvenc", "-preset", "p4", "-profile:v", "high", "-rc", "vbr", "-cq", "19", "-b:v", "0",
+          "-bf", "2", "-b_ref_mode", "disabled"] if gpu
+         else ["-c:v", "libx264", "-preset", "veryfast", "-profile:v", "high", "-crf", "18", "-threads", "4"])
+    return gpu, v + ["-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
+                     "-af", "aresample=async=1:first_pts=0", "-avoid_negative_ts", "make_zero", "-movflags", "+faststart"]
+
+
+def run_ffmpeg_progress(cmd, total, lo, hi, label):
+    """Run ffmpeg and turn its position into "@@ pct label (x%, about N min left)" lines for the progress bar."""
+    import re
+    import time as _t
+    cmd = cmd[:1] + ["-progress", "pipe:1", "-nostats"] + cmd[1:]
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
+    t0, last = _t.time(), 0.0
+    for line in p.stdout:
+        m = re.match(r"out_time_us=(\d+)", line.strip())
+        if not m or total <= 0:
+            if line.strip() and not re.match(r"^[\w.]+=", line.strip()):
+                print("  " + line.rstrip(), flush=True)
+            continue
+        done = int(m.group(1)) / 1e6
+        frac = max(0.0, min(1.0, done / total))
+        if _t.time() - last < 2:
+            continue
+        last = _t.time()
+        el = last - t0
+        left = (el / frac - el) / 60 if frac > 0.02 else None
+        eta = f", about {max(1, round(left))} min left" if left is not None else ""
+        print(f"@@ {int(lo + frac * (hi - lo))} {label} ({frac * 100:.0f}%{eta})", flush=True)
+    return p.wait()
+
+
 def fix_sync(src, cfg):
     """Convert a non-H.264 download to H.264 once (GPU when available)."""
     src = Path(src)
@@ -50,18 +85,16 @@ def fix_sync(src, cfg):
     print("@@ 33 Converting the stream so it plays smoothly (one time)", flush=True)
     print(f"  converting {video_codec(src) or 'video'} -> H.264 so it plays in sync and edits smoothly...")
     tmp = src.with_name("source.syncing.mp4")
-    gpu = cfg.get("render_encoder") == "h264_nvenc"
-    v = (["-c:v", "h264_nvenc", "-preset", "p4", "-profile:v", "high", "-rc", "vbr", "-cq", "19", "-b:v", "0",
-          "-bf", "2", "-b_ref_mode", "disabled"] if gpu
-         else ["-c:v", "libx264", "-preset", "veryfast", "-profile:v", "high", "-crf", "18", "-threads", "4"])
+    from .util import probe
+    total = probe(src)[0]
+    gpu, v = _sync_args(cfg)
     base = ["ffmpeg", "-v", "error", "-y"]
-    tail = ["-i", str(src), "-map", "0:v:0", "-map", "0:a:0?"] + v + [
-        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", "-af", "aresample=async=1:first_pts=0",
-        "-avoid_negative_ts", "make_zero", "-movflags", "+faststart", str(tmp)]
-    r = subprocess.run(base + (["-hwaccel", "cuda"] if gpu else []) + tail)
-    if r.returncode != 0 and gpu:      # GPU decode not available - decode on CPU, still encode on GPU
-        r = subprocess.run(base + tail)
-    if r.returncode != 0 or not tmp.exists():
+    tail = ["-i", str(src), "-map", "0:v:0", "-map", "0:a:0?"] + v + [str(tmp)]
+    label = "Converting the stream so it plays smoothly (one time)"
+    rc = run_ffmpeg_progress(base + (["-hwaccel", "cuda"] if gpu else []) + tail, total, 33, 95, label)
+    if rc != 0 and gpu:      # GPU decode not available - decode on CPU, still encode on GPU
+        rc = run_ffmpeg_progress(base + tail, total, 33, 95, label)
+    if rc != 0 or not tmp.exists():
         tmp.unlink(missing_ok=True)
         print("  [!] couldn't convert the stream - continuing with the original download")
         return src
@@ -163,3 +196,28 @@ def download_chat(url, job_dir, start=None, end=None):
 def download_url(url, out_path):
     subprocess.run(_yt_dlp() + ["-f", "best[ext=mp4]/best", "-o", str(out_path), url], check=True)
     return Path(out_path)
+
+
+EDIT_PAD = 15 * 60   # the editor gets 15 minutes before and after the Short
+
+
+def edit_window(src, start, end, cfg, out):
+    """Convert just the part of a non-H.264 stream around one Short (a minute or two instead of the whole stream).
+    Returns (file, offset): editor time 0 = `offset` seconds into the stream."""
+    from .util import probe
+    total = probe(src)[0]
+    a = max(0.0, start - EDIT_PAD)
+    b = min(total or end + EDIT_PAD, end + EDIT_PAD)
+    gpu, v = _sync_args(cfg)
+    tmp = Path(out).with_name(Path(out).stem + ".part.mp4")
+    base = ["ffmpeg", "-v", "error", "-y"]
+    tail = ["-ss", f"{a:.2f}", "-t", f"{b - a:.2f}", "-i", str(src), "-map", "0:v:0", "-map", "0:a:0?"] + v + [str(tmp)]
+    label = "Converting the part of the stream around this Short"
+    rc = run_ffmpeg_progress(base + (["-hwaccel", "cuda"] if gpu else []) + tail, b - a, 5, 95, label)
+    if rc != 0 and gpu:
+        rc = run_ffmpeg_progress(base + tail, b - a, 5, 95, label)
+    if rc != 0 or not tmp.exists():
+        tmp.unlink(missing_ok=True)
+        raise SystemExit("[!] Couldn't convert this part of the stream.")
+    os.replace(tmp, out)
+    return Path(out), round(a, 2), round(b, 2)

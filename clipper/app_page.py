@@ -609,9 +609,11 @@ async function openEditor(c){
   const info=await api(`/api/clip_info?job=${encodeURIComponent(c.job)}&id=${encodeURIComponent(c.id)}`);
   if(!info.available){toast('The full stream for this Short was already deleted, so it can\'t be re-cut. (Settings &rarr; Auto-delete controls how long streams are kept.)');return}
   if(info.needs_sync){pendingEdit=c;await api('/api/run',{kind:'syncfix',job:c.job,id:c.id});lastJobKey='running';
-    toast('Converting this stream so it plays in sync (one time, a few minutes). The editor opens by itself when it\'s done.');poll();return}
-  E={job:c.job,id:c.id,dur:info.duration,a:info.start,b:info.start+(info.end-info.start),oa:info.start,ob:info.end,pad:60};
-  E.b=info.end;setView();updateLayoutMenus();
+    toast('<b>Getting the editor ready:</b> converting the half hour around this Short (a minute or two). The editor opens by itself.');poll();return}
+  // off = where the editor's video starts in the stream (only part of an AV1 stream is converted); E.* times are video times
+  const off=info.offset||0;
+  E={job:c.job,id:c.id,off,dur:info.duration,a:info.start-off,b:info.end-off,oa:info.start-off,ob:info.end-off,pad:60};
+  setView();updateLayoutMenus();
   const src=(LY||S.layouts);$('edLayout').value=src.layouts.some(l=>l.id===info.layout)?info.layout:src.default;
   $('edTitle').textContent=c.title;$('edSrc').src=`/source/${c.job}/${c.id}`;
   $('edShort').src=`/media/${c.job}/${info.file}`;$('edShort').poster=`/media/${c.job}/${info.poster}`;
@@ -626,12 +628,12 @@ const X=t=>(t-E.vs)/(E.ve-E.vs)*100;
 function drawTL(){
   if(!E)return;const tl=$('tl');tl.querySelectorAll('.tick').forEach(x=>x.remove());
   const span=E.ve-E.vs,step=span>400?60:span>150?30:span>60?10:5;
-  for(let t=Math.ceil(E.vs/step)*step;t<E.ve;t+=step){const d=document.createElement('div');d.className='tick';d.style.left=X(t)+'%';d.innerHTML=`<span>${fmt(t).replace(/\.\d$/,'')}</span>`;tl.prepend(d)}
+  for(let t=Math.ceil((E.vs+E.off)/step)*step-E.off;t<E.ve;t+=step){const d=document.createElement('div');d.className='tick';d.style.left=X(t)+'%';d.innerHTML=`<span>${fmt(t+E.off).replace(/\.\d$/,'')}</span>`;tl.prepend(d)}
   $('tlOrig').style.left=X(E.oa)+'%';$('tlOrig').style.width=(X(E.ob)-X(E.oa))+'%';
   $('tlSel').style.left=X(E.a)+'%';$('tlSel').style.width=(X(E.b)-X(E.a))+'%';
   $('hIn').style.left=X(E.a)+'%';$('hOut').style.left=X(E.b)+'%';
   const ph=$('edSrc').currentTime||E.a;$('tlPh').style.left=X(ph)+'%';
-  $('vIn').textContent=fmt(E.a);$('vOut').textContent=fmt(E.b);
+  $('vIn').textContent=fmt(E.a+E.off);$('vOut').textContent=fmt(E.b+E.off);
   const len=E.b-E.a;$('edLen').textContent=`${len.toFixed(1)}s long`+(Math.abs(E.a-E.oa)>.05||Math.abs(E.b-E.ob)>.05?' (changed)':'');
   $('edLen').style.color=len>180?'var(--no)':'';
 }
@@ -655,7 +657,7 @@ $('edReset').onclick=()=>{E.a=E.oa;E.b=E.ob;E.pad=60;setView();drawTL();$('edSrc
 $('edSave').onclick=async()=>{if(!E||edSaving)return;
   if(E.b-E.a>180&&!confirm('This is over 3 minutes, which is longer than YouTube allows for a Short. Make it anyway?'))return;
   edSaving=true;$('edSave').disabled=true;$('edSave').textContent='Updating...';$('edSrc').pause();
-  try{const r=await api('/api/run',{kind:'rerender',job:E.job,id:E.id,start:E.a,end:E.b,layout:$('edLayout').value});
+  try{const r=await api('/api/run',{kind:'rerender',job:E.job,id:E.id,start:E.a+E.off,end:E.b+E.off,layout:$('edLayout').value});
     if(r.queued){edSaving=false;$('edSave').disabled=false;$('edSave').textContent='Update Short';closeEditor();toast('<b>In line:</b> this Short updates when the current job finishes.');poll();return}
     lastJobKey='running';poll()}catch(e){edSaving=false;$('edSave').disabled=false;$('edSave').textContent='Update Short'}};
 
