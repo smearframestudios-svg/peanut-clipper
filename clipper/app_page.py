@@ -423,7 +423,8 @@ function drawJob(j){
     if(j.kind==='syncfix'){if(j.ok&&pendingEdit){const c=pendingEdit;pendingEdit=null;openEditor(c)}
       if(j.ok&&pendingPreview!==null&&KW){const i=pendingPreview;pendingPreview=null;openSearch(KW.sid).then(()=>{const b=document.querySelector(`[data-a=play][data-i="${i}"]`);if(b)b.click()})}}
     if(j.kind==='rerender'){const wasSaving=edSaving;edSaving=false;$('edSave').disabled=false;$('edSave').textContent='Update Short';
-      if(j.ok){toast('Short updated.');if(wasSaving)closeEditor();loadClips()}}
+      if(j.ok){toast('Short updated.');if(wasSaving)closeEditor();loadClips()}
+      else if(E&&E.shortSrc&&!$('edShort').getAttribute('src'))$('edShort').src=E.shortSrc}
     if(!j.ok){toast('<b>Stopped:</b> '+esc(j.label)+'<br><span class="tiny">Click "Show details" on the Make Shorts tab for the full log.</span>')}
   }
   lastJobKey=j.running?'running':key;
@@ -733,6 +734,8 @@ $('edReset').onclick=()=>{E.a=E.oa;E.b=E.ob;E.pad=60;setView();drawTL();$('edSrc
 $('edSave').onclick=async()=>{if(!E||edSaving)return;
   if(E.b-E.a>180&&!confirm('This is over 3 minutes, which is longer than YouTube allows for a Short. Make it anyway?'))return;
   edSaving=true;$('edSave').disabled=true;$('edSave').textContent='Updating...';$('edSrc').pause();
+  // let go of the current Short's file so Windows can replace it
+  {const v=$('edShort');E.shortSrc=v.getAttribute('src');v.pause();v.removeAttribute('src');v.load()}
   try{const r=await api('/api/run',{kind:'rerender',job:E.job,id:E.id,start:E.a+E.off,end:E.b+E.off,layout:$('edLayout').value,framing:frSend()});
     if(r.queued){edSaving=false;$('edSave').disabled=false;$('edSave').textContent='Update Short';closeEditor();toast('<b>In line:</b> this Short updates when the current job finishes.');poll();return}
     lastJobKey='running';poll()}catch(e){edSaving=false;$('edSave').disabled=false;$('edSave').textContent='Update Short'}};

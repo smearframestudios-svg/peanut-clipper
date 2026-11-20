@@ -1,5 +1,10 @@
 # What's new
 
+## 1.4.2
+- Fixed "The process cannot access the file": re-cutting a Short no longer stops when Windows has the old version open (a preview playing, or Premiere). The new version is saved, and the old one is deleted as soon as it's free (after the next job or when the app starts).
+- Previews don't lock files: videos in the app no longer keep files locked while paused.
+- Editor lets go first: the editor releases the current Short before re-cutting it.
+
 ## 1.4.1
 - Markers in the trim editor: press M (or "+ Marker at playhead") to drop a blue marker where the video is.
 - Snap to markers: dragging the start or end handle, or the whole selection, snaps onto a marker when you get close. Untick "Snap to markers" to drag freely.

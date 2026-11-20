@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from .util import ROOT, load_json, probe, save_json
+from .util import ROOT, load_json, probe, safe_unlink, save_json
 
 DONE = ("rejected", "uploaded", "exported")
 
@@ -38,7 +38,7 @@ def delete_files(job_dir, clip):
     f = clip.get("file") or ""
     for name in (f, clip.get("poster"), Path(f).with_suffix(".ass").name if f else ""):
         if name:
-            (Path(job_dir) / name).unlink(missing_ok=True)
+            safe_unlink(Path(job_dir) / name)     # in use (preview open)? deleted later instead of failing
     clip["deleted"] = True
 
 
@@ -234,13 +234,15 @@ def rerender(cfg, job, cid, start, end, layout=None, framing=None):
     name = f"clip_{cid}_v{ver}.mp4"
     print("@@ 40 Rendering", flush=True)
     mp4, jpg = render_short(src, start - off, end - off, f.parent / name, words, cfg, sw, sh)
-    delete_files(f.parent, dict(c))
+    old = dict(c)
     shift = start - c["src_start"]
     c.update(file=mp4.name, poster=jpg.name, version=ver, src_start=round(start, 2), src_end=round(end, 2),
              start=round(c["start"] + shift, 2), end=round(c["start"] + shift + (end - start), 2),
              length=round(end - start, 1))
     c.pop("deleted", None)
     save_json(f, data)
+    if old.get("file") != c["file"]:
+        delete_files(f.parent, old)           # the previous version, only once the new one is saved
     print("@@ 100 Short updated", flush=True)
 
 

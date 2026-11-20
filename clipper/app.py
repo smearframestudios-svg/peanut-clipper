@@ -104,6 +104,11 @@ class Runner:
                           "hwtest": "Graphics card test finished", "rerender": "Short updated",
                           "export": "Exported for Premiere", "syncfix": "Stream converted"}.get(self.kind, "Done")
         self.finished_at = time.time()
+        try:
+            from .util import retry_pending_deletes
+            retry_pending_deletes()
+        except Exception:  # noqa: BLE001
+            pass
         self._next()
 
     def _next(self):
@@ -210,18 +215,24 @@ def make_handler():
             self.send_header("Cache-Control", "no-store")
             self.send_header("Content-Length", str(end - start + 1))
             self.end_headers()
-            with open(path, "rb") as fh:
-                fh.seek(start)
-                left = end - start + 1
-                while left > 0:
-                    chunk = fh.read(min(1 << 20, left))
-                    if not chunk:
-                        break
-                    try:
-                        self.wfile.write(chunk)
-                    except (BrokenPipeError, ConnectionResetError):
-                        return
-                    left -= len(chunk)
+            # open the file only while reading each piece: a paused video in the browser must never keep it
+            # locked (Windows can't delete or replace a file that's open)
+            pos, left = start, end - start + 1
+            while left > 0:
+                try:
+                    with open(path, "rb") as fh:
+                        fh.seek(pos)
+                        chunk = fh.read(min(1 << 20, left))
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                pos += len(chunk)
+                left -= len(chunk)
+                try:
+                    self.wfile.write(chunk)
+                except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                    return
 
         def do_GET(self):
             p = unquote(urlparse(self.path).path)
@@ -525,6 +536,11 @@ def already_running(port):
 
 
 def serve_app(cfg, port=8765, open_browser=True, wait=False):
+    try:
+        from .util import retry_pending_deletes
+        retry_pending_deletes()          # old Short versions that were locked last time
+    except Exception:  # noqa: BLE001
+        pass
     url = f"http://127.0.0.1:{port}/"
     if already_running(port) and not wait:
         if open_browser:

@@ -229,3 +229,38 @@ def compile_terms(table):
         pat = r"(?<![\w])(" + "|".join(re.escape(a) for a in aliases) + r")"
         terms.append((aliases[0], re.compile(pat, re.I), float(weight)))
     return terms
+
+
+# ---------------------------------------------------------------- deleting files Windows has locked
+PENDING = "pending_deletes.json"
+
+
+def safe_unlink(path):
+    """Delete a file. If Windows says it's in use (a preview playing, Premiere open), try again later
+    instead of stopping the job. Returns True if it's gone now."""
+    path = Path(path)
+    try:
+        path.unlink(missing_ok=True)
+        return True
+    except PermissionError:
+        f = DATA / PENDING
+        todo = load_json(f, []) or []
+        if str(path) not in todo:
+            todo.append(str(path))
+            save_json(f, todo)
+        return False
+
+
+def retry_pending_deletes():
+    """Delete files that were locked earlier (called after every job and when the app starts)."""
+    f = DATA / PENDING
+    todo = load_json(f, []) or []
+    if not todo:
+        return
+    left = []
+    for p in todo:
+        try:
+            Path(p).unlink(missing_ok=True)
+        except PermissionError:
+            left.append(p)
+    save_json(f, left)
