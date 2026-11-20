@@ -368,8 +368,8 @@ function drawJob(j){
   $('jobTitle').textContent=(titles[j.kind]||'Working')+(j.running?'...':'');
   $('jobPct').textContent=j.running?j.pct+'%':'';
   $('bar').className='bar'+(j.ok===false?' err':(j.ok?' done':''));$('bar').firstElementChild.style.width=(j.ok?100:j.pct)+'%';
-  $('jobLabel').textContent=j.label;$('cancel').style.display=j.running?'':'none';
-  ['go','kwGo','goTwitch','goAuto','goUpload','goFrame','hwTest','goExportAll'].forEach(id=>$(id).disabled=j.running);
+  $('jobLabel').textContent=j.label+(j.queued?` (${j.queued} waiting in line)`:'');$('cancel').style.display=j.running?'':'none';
+  ['go','kwGo','goTwitch','goAuto','goUpload','goFrame','hwTest'].forEach(id=>$(id).disabled=j.running);
   if(logOpen){$('log').textContent=j.log.join('\n');}
   const key=j.kind+':'+j.ok;
   if(!j.running&&j.ok!==null&&lastJobKey&&lastJobKey!==key){
@@ -383,8 +383,8 @@ function drawJob(j){
       if(j.ok&&S.last_made&&S.last_made.export)toast('<b>Exported for Premiere.</b><br><span class="tiny">'+esc(S.settings.export_folder||S.default_export)+'</span>')}
     if(j.kind==='syncfix'){if(j.ok&&pendingEdit){const c=pendingEdit;pendingEdit=null;openEditor(c)}
       if(j.ok&&pendingPreview!==null&&KW){const i=pendingPreview;pendingPreview=null;openSearch(KW.sid).then(()=>{const b=document.querySelector(`[data-a=play][data-i="${i}"]`);if(b)b.click()})}}
-    if(j.kind==='rerender'){edSaving=false;$('edSave').disabled=false;$('edSave').textContent='Update Short';
-      if(j.ok){toast('Short updated.');closeEditor();loadClips()}}
+    if(j.kind==='rerender'){const wasSaving=edSaving;edSaving=false;$('edSave').disabled=false;$('edSave').textContent='Update Short';
+      if(j.ok){toast('Short updated.');if(wasSaving)closeEditor();loadClips()}}
     if(!j.ok){toast('<b>Stopped:</b> '+esc(j.label)+'<br><span class="tiny">Click "Show details" on the Make Shorts tab for the full log.</span>')}
   }
   lastJobKey=j.running?'running':key;
@@ -448,7 +448,7 @@ async function openSearch(sid,keepPlayer){
       if(!v.src.endsWith('/search_source/'+KW.sid)){v.preload='auto';v.src='/search_source/'+KW.sid;v.load()}
       const go=()=>{v.currentTime=Math.max(0,m.t-8);v.play()};if(v.readyState>0)go();else v.addEventListener('loadedmetadata',go,{once:true});
       $('kwPlayer').scrollIntoView({behavior:'smooth',block:'center'});return}
-    await api('/api/run',{kind:'fromsearch',sid:KW.sid,idx:m.i,export:b.dataset.a==='export',layout:$('mkLayout').value});lastJobKey='running';poll()});
+    const r=await api('/api/run',{kind:'fromsearch',sid:KW.sid,idx:m.i,export:b.dataset.a==='export',layout:$('mkLayout').value});lastJobKey='running';if(r.queued)toast('<b>In line:</b> this match is cut when the current job finishes.');poll()});
 }
 
 // ---------- review ----------
@@ -477,14 +477,14 @@ async function loadPlan(){
   const plan=await api('/api/plan');const box=$('plan');
   box.innerHTML=plan.length?plan.map(p=>`<div class="it"><img src="${p.poster}"><div><b>${esc(p.title)}</b><div class="tiny mute">${p.length}s &middot; YouTube slot: ${esc(p.when)}</div></div>
     <span style="margin-left:auto"></span><button class="btn" data-ex="${p.job}|${p.id}">Export for Premiere</button></div>`).join(''):'<div class="mute">No approved Shorts yet.</div>';
-  box.querySelectorAll('[data-ex]').forEach(b=>b.onclick=async()=>{const[job,id]=b.dataset.ex.split('|');await api('/api/run',{kind:'export',job,id});lastJobKey='running';toast('Exporting for Premiere...');poll()});
+  box.querySelectorAll('[data-ex]').forEach(b=>b.onclick=async()=>{const[job,id]=b.dataset.ex.split('|');const r=await api('/api/run',{kind:'export',job,id});lastJobKey='running';toast(r.queued?'<b>In line:</b> exports when the current job finishes.':'Exporting for Premiere...');poll()});
   $('expFolder').textContent=S.settings.export_folder||S.default_export;
   const busy=S.job&&S.job.running;
   $('goUpload').disabled=!plan.length||!S.youtube.secret||busy;$('goExportAll').disabled=!plan.length||busy;
 }
 $('secret').onchange=async e=>{const f=e.target.files[0];if(!f)return;
   try{await api('/api/client_secret',await f.text());$('secretMsg').textContent='Saved.';await poll();loadPlan()}catch(err){$('secretMsg').textContent=''}};
-$('goExportAll').onclick=async()=>{await api('/api/run',{kind:'export'});lastJobKey='running';toast('Exporting for Premiere...');poll()};
+$('goExportAll').onclick=async()=>{const r=await api('/api/run',{kind:'export'});lastJobKey='running';toast(r.queued?'<b>In line:</b> exports when the current job finishes.':'Exporting for Premiere...');poll()};
 $('goUpload').onclick=async()=>{await api('/api/run',{kind:'upload'});lastJobKey='running';show('make');poll()};
 
 // ---------- settings ----------
@@ -650,7 +650,9 @@ $('edReset').onclick=()=>{E.a=E.oa;E.b=E.ob;E.pad=60;setView();drawTL();$('edSrc
 $('edSave').onclick=async()=>{if(!E||edSaving)return;
   if(E.b-E.a>180&&!confirm('This is over 3 minutes, which is longer than YouTube allows for a Short. Make it anyway?'))return;
   edSaving=true;$('edSave').disabled=true;$('edSave').textContent='Updating...';$('edSrc').pause();
-  try{await api('/api/run',{kind:'rerender',job:E.job,id:E.id,start:E.a,end:E.b,layout:$('edLayout').value});lastJobKey='running';poll()}catch(e){edSaving=false;$('edSave').disabled=false;$('edSave').textContent='Update Short'}};
+  try{const r=await api('/api/run',{kind:'rerender',job:E.job,id:E.id,start:E.a,end:E.b,layout:$('edLayout').value});
+    if(r.queued){edSaving=false;$('edSave').disabled=false;$('edSave').textContent='Update Short';closeEditor();toast('<b>In line:</b> this Short updates when the current job finishes.');poll();return}
+    lastJobKey='running';poll()}catch(e){edSaving=false;$('edSave').disabled=false;$('edSave').textContent='Update Short'}};
 
 // ---------- banner files ----------
 const ovImgs={};

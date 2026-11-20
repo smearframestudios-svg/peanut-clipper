@@ -34,14 +34,22 @@ class Runner:
         self.finished_at = None
         self.ok = None
         self.lock = threading.Lock()
+        self.queue = []          # quick jobs (re-cut, export, cut a match) waiting for the current job
 
     @property
     def running(self):
         return self.proc is not None and self.proc.poll() is None
 
+    QUEUEABLE = ("rerender", "export", "fromsearch")
+
     def start(self, kind, args, label, section_len=None):
+        """True = started, "queued" = waits for the current job, False = refused (something else is running)."""
         with self.lock:
             if self.running:
+                if kind in self.QUEUEABLE:
+                    if [kind, args] not in [[q[0], q[1]] for q in self.queue]:
+                        self.queue.append((kind, args, label, section_len))
+                    return "queued"
                 return False
             self.kind, self.pct, self.label, self.log, self.ok = kind, 0, label, [], None
             self.finished_at = None
@@ -96,6 +104,17 @@ class Runner:
                           "hwtest": "Graphics card test finished", "rerender": "Short updated",
                           "export": "Exported for Premiere", "syncfix": "Stream converted"}.get(self.kind, "Done")
         self.finished_at = time.time()
+        self._next()
+
+    def _next(self):
+        """Start the next waiting job, if any (the finished job's result stays on screen briefly first)."""
+        if not self.queue:
+            return
+        time.sleep(1.5)                  # let the page see the finished job before the next one starts
+        with self.lock:
+            nxt = self.queue.pop(0) if self.queue else None
+        if nxt:
+            self.start(*nxt)
 
     def cancel(self):
         if self.running:
@@ -107,7 +126,7 @@ class Runner:
 
     def state(self):
         return {"running": self.running, "kind": self.kind, "pct": self.pct, "label": self.label,
-                "ok": self.ok, "log": self.log[-60:]}
+                "ok": self.ok, "log": self.log[-60:], "queued": len(self.queue)}
 
 
 RUNNER = Runner()
@@ -362,7 +381,10 @@ def make_handler():
                     args, label = ["frame", body.get("url", ""), "--at", body.get("at") or "1:00:00"], "Grabbing a frame..."
                 else:
                     return self._send(400, {"error": "unknown job"})
-                if not RUNNER.start(kind, args, label, section if kind in ("vod", "search") else (8 if kind == "frame" else None)):
+                started = RUNNER.start(kind, args, label, section if kind in ("vod", "search") else (8 if kind == "frame" else None))
+                if started == "queued":
+                    return self._send(200, {"ok": True, "queued": True})
+                if not started:
                     return self._send(409, {"error": "Something is already running - wait for it or cancel it."})
                 return self._send(200, {"ok": True})
             if p == "/api/check_update":

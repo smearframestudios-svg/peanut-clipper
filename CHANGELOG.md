@@ -1,5 +1,10 @@
 # What's new
 
+## 1.3.1
+- **No more "Something is already running":** you can edit a Short (Update Short), export, or cut a keyword match while a stream is still being made. It waits in line and starts by itself when the current job finishes.
+- **Waiting line shown:** the progress bar says how many jobs are waiting.
+- **Approve and Reject** keep working while a job runs, like before.
+
 ## 1.3.0
 - Saved layouts: make as many layouts as you want (e.g. "GTA", "ARC Raiders", "Gameplay only") on the Layouts & Banners screen. Your current layout is kept as "Main".
 - Three styles per layout: Peanut over gameplay, Gameplay only (one box fills the whole Short), or Whole stream.
