@@ -94,6 +94,10 @@ def main(argv=None):
     ca.add_argument("comp")
     ca.add_argument("sid")
     ca.add_argument("idx", type=int)
+    cs = sub.add_parser("coladd", help="put a Review Short into a collection")
+    cs.add_argument("comp")
+    cs.add_argument("job")
+    cs.add_argument("clip")
     ce = sub.add_parser("compexport", help="export a compilation (one 16:9 video, or a Premiere folder)")
     ce.add_argument("comp")
     ce.add_argument("--premiere", action="store_true")
@@ -178,6 +182,9 @@ def main(argv=None):
     elif a.cmd == "compadd":
         from .compile import add_moment
         add_moment(cfg, a.comp, a.sid, a.idx)
+    elif a.cmd == "coladd":
+        from .compile import add_short
+        add_short(cfg, a.comp, a.job, a.clip)
     elif a.cmd == "compexport":
         from .compile import export_premiere, export_video
         (export_premiere if a.premiere else export_video)(cfg, a.comp)

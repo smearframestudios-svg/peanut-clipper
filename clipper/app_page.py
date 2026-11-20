@@ -49,6 +49,7 @@ pre.log{background:#0b0c0e;border:1px solid var(--line);border-radius:9px;paddin
 .chips{display:flex;flex-wrap:wrap;gap:5px}.chip{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--panel2);color:#d6d7db}
 .chip.s{background:var(--acc);color:#111;font-weight:800}
 .clip .act{display:flex;gap:8px;margin-top:auto}.clip .act .btn{flex:1;padding:10px}
+.clip .act{flex-wrap:wrap}.clip .act .colwrap{flex-basis:100%}.clip .act .colbtn{width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .empty{padding:70px 20px;text-align:center;color:var(--mute);border:1px dashed var(--line);border-radius:14px}
 .plan{display:flex;flex-direction:column;gap:8px;margin:12px 0}
 .plan .it{display:flex;gap:12px;align-items:center;background:var(--panel2);border-radius:10px;padding:8px}
@@ -139,6 +140,11 @@ a{color:var(--blue)}
 .hrow .tt{flex:1;min-width:0}.hrow .tt b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;display:inline-block;vertical-align:bottom}
 .pill{font-size:11px;border-radius:99px;padding:2px 8px;margin-left:6px;white-space:nowrap}
 .pill.uploaded{background:#183a29;color:#9ee6bd}.pill.exported{background:#1d2c44;color:#9cc4ff}.pill.rejected{background:#3a1d1f;color:#ffb3b6}
+.colwrap{position:relative;display:inline-block}
+.colmenu{position:absolute;bottom:calc(100% + 6px);right:0;z-index:30;min-width:220px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:6px;box-shadow:0 10px 30px #0008}
+.colmenu button{display:block;width:100%;text-align:left;background:none;border:0;color:var(--text);padding:8px 10px;border-radius:7px;font:inherit;font-size:13px;cursor:pointer}
+.colmenu button:hover{background:var(--line)}.colmenu button.in{color:#9ee6bd}.colmenu .new{color:var(--mute)}
+.mo img.v{width:34px;height:60px}
 .ed-foot{display:flex;align-items:center;gap:12px;margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
 .ov{display:flex;align-items:center;gap:12px;background:var(--panel2);border-radius:10px;padding:10px;margin-bottom:8px}
 .ov img{width:54px;height:96px;object-fit:contain;background:repeating-conic-gradient(#333 0 25%,#222 0 50%) 0 0/12px 12px;border-radius:6px}
@@ -159,6 +165,7 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
     <button data-t="review">Review<span class="badge" id="nPending"></span></button>
     <button data-t="upload">Approved<span class="badge" id="nApproved"></span></button>
     <button data-t="comps">Compilations</button>
+    <button data-t="cols">Collections</button>
     <button data-t="history">History</button>
     <button data-t="settings">Settings</button>
     <button data-t="layout">Layouts &amp; Banners</button>
@@ -304,6 +311,34 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
       <span class="seg" id="cmpNum"><button data-v="1">On</button><button data-v="0">Off</button></span></div>
     <div class="row" style="margin-top:14px"><button class="btn main" id="cmpExport">Export video (16:9)</button><button class="btn" id="cmpPrem">Export for Premiere</button>
       <span class="tiny mute">Premiere = every moment as its own file + a ready-made sequence (XML) with each one on its own cut. In Premiere: File &rarr; Import &rarr; the .xml.</span></div>
+  </div>
+</section>
+
+<section id="cols">
+  <h2>Collections</h2><p class="sub">Shorts you set aside from Review for a montage later. Each one keeps its own copy, so deleting the Short is fine.</p>
+  <div class="card">
+    <div class="cmp-head"><select id="colPick"></select><button class="btn" id="colNew">New collection</button>
+      <button class="btn" id="colRen">Rename</button><button class="btn no" id="colDel">Delete</button>
+      <span style="margin-left:auto" class="tiny mute">Goal (minutes, optional) <input type="number" class="small" id="colGoal" min="1" max="240" step="1" style="width:80px"></span></div>
+    <div class="cmp-head" style="margin-top:14px"><b id="colLen" style="font:700 18px Consolas,monospace;color:var(--acc)"></b>
+      <div class="cmp-bar" id="colBar"><i></i></div><span class="tiny mute" id="colLeft"></span></div>
+  </div>
+  <div class="card">
+    <div class="cmp-player" id="colPlayer" style="display:none;margin-bottom:12px"><video id="colVid" controls preload="none"></video>
+      <div class="row tiny mute" style="margin-top:6px"><span id="colNow"></span><button class="btn" id="colStop" style="margin-left:auto;padding:6px 10px">Stop</button></div></div>
+    <div class="row" style="margin-bottom:10px"><b id="colCount"></b><span class="tiny mute">Drag the number to reorder.</span>
+      <span style="margin-left:auto" class="row"><button class="btn" id="colPlayAll">&#9654; Play all</button><button class="btn" id="colShuffle">Shuffle</button><button class="btn" id="colOldest">Oldest first</button></span></div>
+    <div id="colList"></div>
+  </div>
+  <div class="card">
+    <div class="row"><span class="tiny mute" style="min-width:120px">Montage shape</span>
+      <span class="seg" id="colShape"><button data-v="vertical">Vertical 9:16 (as the Shorts look)</button><button data-v="horizontal">Horizontal 16:9 (original stream view)</button></span></div>
+    <div class="row" style="margin-top:10px"><span class="tiny mute" style="min-width:120px">Between clips</span>
+      <span class="seg" id="colTr"><button data-v="cut">Cut</button><button data-v="flash">Quick flash</button><button data-v="fade">Crossfade</button></span>
+      <span class="tiny mute" style="margin-left:18px">Clip numbers</span>
+      <span class="seg" id="colNum"><button data-v="1">On</button><button data-v="0">Off</button></span></div>
+    <div class="row" style="margin-top:14px"><button class="btn main" id="colExport">Export montage</button><button class="btn" id="colPrem">Export for Premiere</button>
+      <span class="tiny mute">Premiere = each clip as its own file + a ready-made sequence (XML). In Premiere: File &rarr; Import &rarr; the .xml.</span></div>
   </div>
 </section>
 
@@ -510,7 +545,7 @@ async function api(path,body){
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>show(b.dataset.t));
 function show(t){document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x.dataset.t===t));
   document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id===t));
-  if(t==='review')loadClips(); if(t==='comps')loadComps(); if(t==='history')loadHistory(); if(t==='upload')loadPlan(); if(t==='settings')fillSettings(); if(t==='layout')initLayout();}
+  if(t==='review')loadClips(); if(t==='comps')loadComps(); if(t==='cols')loadCols(); if(t==='history')loadHistory(); if(t==='upload')loadPlan(); if(t==='settings')fillSettings(); if(t==='layout')initLayout();}
 
 // ---------- state polling ----------
 let down=0, quitting=false, reloadWhenBack=false;
@@ -530,7 +565,7 @@ function fmtTime(t){if(!t)return'';let[h,m]=t.split(':').map(Number);const ap=h>
 function drawJob(j){
   const card=$('jobCard');if(!j.kind){card.style.display='none';return}
   card.style.display='block';
-  const titles={syncfix:'Converting the stream',compadd:'Adding to the compilation',compexport:'Exporting the compilation',search:'Searching for keywords',fromsearch:'Cutting a match',rerender:'Re-cutting a Short',export:'Exporting for Premiere',vod:'Making Shorts',clips:'Twitch top clips',upload:'Uploading',auto:'Auto mode',frame:'Grabbing a frame',hwtest:'Graphics card test'};
+  const titles={syncfix:'Converting the stream',compadd:'Adding to the compilation',compexport:'Exporting',coladd:'Adding to the collection',search:'Searching for keywords',fromsearch:'Cutting a match',rerender:'Re-cutting a Short',export:'Exporting for Premiere',vod:'Making Shorts',clips:'Twitch top clips',upload:'Uploading',auto:'Auto mode',frame:'Grabbing a frame',hwtest:'Graphics card test'};
   $('jobTitle').textContent=(titles[j.kind]||'Working')+(j.running?'...':'');
   $('jobPct').textContent=j.running?j.pct+'%':'';
   $('bar').className='bar'+(j.ok===false?' err':(j.ok?' done':''));$('bar').firstElementChild.style.width=(j.ok?100:j.pct)+'%';
@@ -545,7 +580,8 @@ function drawJob(j){
     if(j.ok&&j.kind==='export'){toast('<b>Exported for Premiere.</b><br><span class="tiny">'+esc(S.settings.export_folder||S.default_export)+'</span>');loadPlan()}
     if(j.ok&&j.kind==='search'){loadSearches(true)}
     if(j.kind==='compadd'){addingNow={};loadComps();if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
-    if(j.ok&&j.kind==='compexport'){loadComps();const f=S.settings.export_folder||S.default_export;
+    if(j.kind==='coladd'){colAdding={};loadCols();if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
+    if(j.ok&&j.kind==='compexport'){loadComps();loadCols();const f=S.settings.export_folder||S.default_export;
       toast('<b>'+esc(j.label)+'</b><br><span class="tiny">'+esc(f)+'</span><br><button class="link" onclick="api(\'/api/open_folder\',{path:'+esc(JSON.stringify(f)).replace(/'/g,'&#39;')+'})">Open the folder</button>')}
     if(j.kind==='fromsearch'){if(KW)openSearch(KW.sid,true);
       if(j.ok&&S.last_made&&!S.last_made.export){api('/api/clips').then(cs=>{const c=cs.find(x=>x.job===S.last_made.job&&x.id===S.last_made.id);if(c)openEditor(c)})}
@@ -628,6 +664,89 @@ async function openSearch(sid,keepPlayer){
     const r=await api('/api/run',{kind:'fromsearch',sid:KW.sid,idx:m.i,export:b.dataset.a==='export',layout:$('mkLayout').value});lastJobKey='running';if(r.queued)toast('<b>In line:</b> this match is cut when the current job finishes.');poll()});
   markAdded();
 }
+
+// ---------- collections (Shorts from Review, for a montage later) ----------
+let COL=null,COLS=[],colCur=null,colQueue=null,colStopAt=null,COLMEM={};
+try{colCur=localStorage.getItem('pc_col')}catch(e){}
+function setCol(id){colCur=id;try{localStorage.setItem('pc_col',id||'')}catch(e){}}
+async function loadCols(){const r=await api('/api/comps?kind=collection');COLS=r.comps;COLMEM=r.members||{};
+  if(!COLS.some(c=>c.id===colCur))setCol(COLS[0]?COLS[0].id:null);
+  $('colPick').innerHTML=COLS.map(c=>`<option value="${esc(c.id)}">${esc(c.name)} (${c.count})</option>`).join('')||'<option value="">No collections yet</option>';
+  if(colCur)$('colPick').value=colCur;
+  COL=colCur?await api('/api/comp?id='+encodeURIComponent(colCur)).catch(()=>null):null;drawCol();markCols()}
+async function newCol(){const name=prompt('Name for the new collection:',`Montage ${COLS.length+1}`);if(!name)return null;
+  const c=await api('/api/comp',{action:'new',name,goal:600,kind:'collection'});setCol(c.id);await loadCols();return c.id}
+async function colDo(action,extra){if(!COL)return;COL=await api('/api/comp',Object.assign({id:COL.id,action},extra||{}));
+  if(action==='delete'){setCol(null);await loadCols();return}await loadCols()}
+const colLen=c=>c.moments.reduce((a,m)=>a+((c.shape||'vertical')==='horizontal'&&m.file?m.b-m.a:m.vdur),0);
+function drawCol(){const has=!!COL;['colRen','colDel','colExport','colPrem','colShuffle','colOldest','colPlayAll','colGoal'].forEach(id=>$(id).disabled=!has);
+  if(!has){$('colLen').textContent='0:00';$('colBar').firstElementChild.style.width='0';$('colLeft').textContent='';$('colCount').textContent='';
+    $('colList').innerHTML='<div class="empty">Start one with <b>New collection</b>, then press <b>+ Collection</b> on any Short in Review.</div>';return}
+  const len=colLen(COL),goal=COL.goal||600;$('colGoal').value=Math.round(goal/60);$('colLen').textContent=mmss(len);
+  $('colBar').className='cmp-bar'+(len>=goal?' done':'');$('colBar').firstElementChild.style.width=Math.min(100,len/goal*100)+'%';
+  $('colLeft').textContent=len>=goal?`Goal of ${mmss(goal)} reached`:`goal ${mmss(goal)} - about ${mmss(goal-len)} to go`;
+  $('colCount').textContent=`${COL.moments.length} Short${COL.moments.length===1?'':'s'}`;
+  [['colShape',COL.shape||'vertical'],['colTr',COL.transition||'cut'],['colNum',COL.numbers?'1':'0']].forEach(([id,v])=>document.querySelectorAll('#'+id+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===v)));
+  const list=$('colList');
+  if(!COL.moments.length){list.innerHTML='<div class="empty">Nothing here yet. Press <b>+ Collection</b> on a Short in Review.</div>';return}
+  const horiz=(COL.shape||'vertical')==='horizontal';
+  list.innerHTML=COL.moments.map((m,k)=>`<div class="mo" draggable="true" data-mid="${m.mid}"><span class="num" title="Drag to reorder">${k+1}</span>
+    <img class="v" src="/comp/${esc(COL.id)}/${esc(m.poster)}" alt="">
+    <div class="tt"><b title="${esc(m.title)}">${esc(m.title)}</b><span class="tiny mute">${m.stream_date?esc(niceDate(m.stream_date))+' stream &middot; ':''}${m.stream_t!=null?'<span class="tc">'+tcode(m.stream_t)+'</span> &middot; ':''}${mmss(horiz&&m.file?m.b-m.a:m.vdur)}${horiz&&!m.file?' &middot; no horizontal copy (stream was gone) - shown with blurred sides':''}</span></div>
+    <button class="btn" data-x="play">&#9654; Preview</button><button class="btn" data-x="up">Up</button><button class="btn" data-x="down">Down</button><button class="btn no" data-x="rm">Remove</button></div>`).join('');
+  list.querySelectorAll('.mo').forEach(row=>{const mid=row.dataset.mid,m=()=>COL.moments.find(x=>x.mid===mid);
+    row.querySelectorAll('[data-x]').forEach(b=>b.onclick=async()=>{const x=b.dataset.x,mm=m(),i=COL.moments.indexOf(mm);
+      if(x==='play'){colPlay([mm]);return}
+      if(x==='rm'){if(confirm('Remove this Short from the collection?'))await colDo('remove',{mid});return}
+      const j=x==='up'?i-1:i+1;if(j<0||j>=COL.moments.length)return;const o=COL.moments.map(q=>q.mid);[o[i],o[j]]=[o[j],o[i]];await colDo('order',{order:o})});
+    row.addEventListener('dragstart',e=>{row.classList.add('drag');e.dataTransfer.setData('text/plain',mid)});
+    row.addEventListener('dragend',()=>row.classList.remove('drag'));
+    row.addEventListener('dragover',e=>{e.preventDefault();row.classList.add('over')});
+    row.addEventListener('dragleave',()=>row.classList.remove('over'));
+    row.addEventListener('drop',async e=>{e.preventDefault();row.classList.remove('over');const from=e.dataTransfer.getData('text/plain');if(!from||from===mid)return;
+      const o=COL.moments.map(q=>q.mid).filter(q=>q!==from);o.splice(o.indexOf(mid)+(COL.moments.findIndex(q=>q.mid===from)<COL.moments.findIndex(q=>q.mid===mid)?1:0),0,from);await colDo('order',{order:o})})})}
+function colPlay(list){colQueue=list.slice();$('colPlayer').style.display='block';colNext();$('colPlayer').scrollIntoView({behavior:'smooth',block:'nearest'})}
+function colNext(){const v=$('colVid'),m=colQueue&&colQueue.shift();document.querySelectorAll('#colList .mo').forEach(r=>r.classList.toggle('on',!!m&&r.dataset.mid===m.mid));
+  if(!m){v.pause();colStopAt=null;$('colNow').textContent='';return}
+  const horiz=(COL.shape||'vertical')==='horizontal'&&m.file,src=`/comp/${COL.id}/${horiz?m.file:m.vfile}`,from=horiz?m.a:0;colStopAt=horiz?m.b:m.vdur-0.05;
+  $('colNow').textContent=`Clip ${COL.moments.findIndex(x=>x.mid===m.mid)+1}: ${m.title}`;
+  const go=()=>{v.currentTime=from;v.play().catch(()=>{})};
+  if(!v.src.endsWith(src)){v.preload='auto';v.src=src;v.addEventListener('loadedmetadata',go,{once:true});v.load()}else go()}
+$('colVid').addEventListener('timeupdate',()=>{if(colStopAt!==null&&$('colVid').currentTime>=colStopAt){colStopAt=null;if(colQueue&&colQueue.length)colNext();else $('colVid').pause()}});
+$('colVid').addEventListener('ended',()=>{if(colQueue&&colQueue.length)colNext()});
+$('colStop').onclick=()=>{colQueue=null;colStopAt=null;$('colVid').pause();$('colPlayer').style.display='none';document.querySelectorAll('#colList .mo.on').forEach(r=>r.classList.remove('on'))};
+$('colPlayAll').onclick=()=>{if(COL)colPlay(COL.moments)};
+$('colPick').onchange=()=>{setCol($('colPick').value);$('colStop').click();loadCols()};
+$('colNew').onclick=newCol;$('colRen').onclick=()=>{const n=prompt('New name:',COL.name);if(n)colDo('settings',{name:n})};
+$('colDel').onclick=()=>{if(confirm(`Delete "${COL.name}" and its ${COL.moments.length} saved Shorts? (Montages you already exported stay.)`))colDo('delete')};
+$('colGoal').onchange=()=>{const m=+$('colGoal').value;if(m>0)colDo('settings',{goal:m*60})};
+$('colShuffle').onclick=()=>colDo('shuffle');$('colOldest').onclick=()=>colDo('oldest');
+document.querySelectorAll('#colShape button').forEach(b=>b.onclick=()=>{$('colStop').click();colDo('settings',{shape:b.dataset.v})});
+document.querySelectorAll('#colTr button').forEach(b=>b.onclick=()=>colDo('settings',{transition:b.dataset.v}));
+document.querySelectorAll('#colNum button').forEach(b=>b.onclick=()=>colDo('settings',{numbers:b.dataset.v==='1'}));
+async function colExport(premiere){if(!COL||!COL.moments.length){toast('Add some Shorts first.');return}
+  const r=await api('/api/run',{kind:'compexport',comp:COL.id,premiere});lastJobKey='running';
+  toast(r.queued?'<b>In line:</b> the export starts when the current job finishes.':'<b>Exporting...</b> progress shows on the Make Shorts tab.');poll()}
+$('colExport').onclick=()=>colExport(false);$('colPrem').onclick=()=>colExport(true);
+// "+ Collection" on Review cards
+let colAdding={};
+function colButton(c){return `<span class="colwrap"><button class="btn colbtn" data-job="${esc(c.job)}" data-id="${esc(c.id)}">+ Collection</button></span>`}
+function markCols(){document.querySelectorAll('.colbtn').forEach(b=>{const key=b.dataset.job+':'+b.dataset.id,inn=COLMEM[key]||[];
+  if(colAdding[key]){b.textContent='Adding...';b.classList.remove('added');b.disabled=true;return}
+  b.disabled=false;b.textContent=inn.length?'In: '+inn.map(x=>x.name).join(', '):'+ Collection';b.classList.toggle('added',!!inn.length);b.title=inn.length?'Add to another collection':''})}
+function closeColMenu(){document.querySelectorAll('.colmenu').forEach(m=>m.remove())}
+document.addEventListener('click',async e=>{const b=e.target.closest('.colbtn');const item=e.target.closest('.colmenu button');
+  if(item){const {job,id,col}=item.dataset;closeColMenu();let target=col;
+    if(target==='__new'){target=await newCol();if(!target)return}
+    colAdding[job+':'+id]=true;markCols();
+    try{const r=await api('/api/run',{kind:'coladd',comp:target,job,id});lastJobKey='running';if(r.queued)toast('<b>In line:</b> added when the current job finishes.');poll()}
+    catch(err){delete colAdding[job+':'+id];markCols()}return}
+  if(!b){if(!e.target.closest('.colmenu'))closeColMenu();return}
+  closeColMenu();const key=b.dataset.job+':'+b.dataset.id,inn=(COLMEM[key]||[]).map(x=>x.id);
+  const menu=document.createElement('div');menu.className='colmenu';
+  menu.innerHTML=COLS.map(c=>`<button data-job="${esc(b.dataset.job)}" data-id="${esc(b.dataset.id)}" data-col="${esc(c.id)}" class="${inn.includes(c.id)?'in':''}" ${inn.includes(c.id)?'disabled':''}>${esc(c.name)} (${c.count})${inn.includes(c.id)?' - added':''}</button>`).join('')+
+    `<button class="new" data-job="${esc(b.dataset.job)}" data-id="${esc(b.dataset.id)}" data-col="__new">+ New collection...</button>`;
+  b.parentElement.appendChild(menu)});
 
 // ---------- where a Short came from in the stream (cards + History) ----------
 const tcode=t=>{t=Math.max(0,Math.floor(t||0));const h=Math.floor(t/3600),m=Math.floor(t%3600/60),s=t%60;return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(s).padStart(2,'0')};
@@ -809,13 +928,14 @@ async function loadClips(){
       <div class="b"><input type="text" value="${esc(c.title)}">
       <div class="chips"><span class="chip s">score ${c.score}</span><span class="chip">${c.length}s</span>${c.reasons.map(r=>`<span class="chip">${esc(r)}</span>`).join('')}</div>
       ${streamLine(c)}
-      <div class="act"><button class="btn ed">&#9986; Edit</button><button class="btn ok">Approve</button><button class="btn no">Reject</button></div></div>`;
+      <div class="act"><button class="btn ed">&#9986; Edit</button><button class="btn ok">Approve</button><button class="btn no">Reject</button>${colButton(c)}</div></div>`;
     const send=async st=>{await api('/api/decide',{job:c.job,id:c.id,status:st,title:el.querySelector('input').value});el.remove();poll();
       if(!grid.querySelector('.clip'))grid.innerHTML='<div class="empty" style="grid-column:1/-1">All done. Head to Upload to schedule the approved ones.</div>'};
     el.querySelector('.ok').onclick=()=>send('approved');el.querySelector('.no').onclick=()=>send('rejected');
     el.querySelector('.ed').onclick=()=>openEditor(c);
     grid.appendChild(el);
   }
+  markCols();
 }
 
 // ---------- upload ----------
@@ -1243,5 +1363,5 @@ $('ovFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;$('ovMsg')
   $('ovMsg').textContent=r.ok?'Added.':'Upload failed.';e.target.value='';await poll();renderOverlays()};
 const _show=show;show=function(t){_show(t);if(t==='layout')setTimeout(renderOverlays,300)};
 
-poll().then(()=>{if(S){$('kwCpu').style.display=S.hw.gpu_speech&&S.settings.use_gpu?'none':'block';updateLayoutMenus();liveFill()}});loadSearches();loadComps();setInterval(poll,1500);liveTick();setInterval(()=>{if(!document.hidden)liveTick()},2000);
+poll().then(()=>{if(S){$('kwCpu').style.display=S.hw.gpu_speech&&S.settings.use_gpu?'none':'block';updateLayoutMenus();liveFill()}});loadSearches();loadComps();loadCols();setInterval(poll,1500);liveTick();setInterval(()=>{if(!document.hidden)liveTick()},2000);
 </script></body></html>"""

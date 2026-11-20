@@ -1,5 +1,14 @@
 # What's new
 
+## 1.9.0
+- Collections: a new tab for saving Shorts for a montage later. Press "+ Collection" on any Short in Review and pick a collection (or make a new one).
+- Stays in Review: adding a Short to a collection doesn't approve or reject it - you can still use it as a Short too. The button then says which collection it's in.
+- Safe from auto-delete: each collection keeps its own copy of the Short (and of the original stream moment, while the stream is still on your PC).
+- Montage shape: export it vertical 9:16 (as the Shorts look) or horizontal 16:9 (the original stream view).
+- Arrange: drag to reorder, Up/Down, Shuffle, Oldest first, Preview, Play all, and an optional length goal.
+- Between clips: Cut, Quick flash or Crossfade, and clip numbers on screen if you want them.
+- Export montage makes one finished video. Export for Premiere gives each clip as its own file plus a ready-made sequence (File, Import, the .xml).
+
 ## 1.8.0
 - Stream time on every Short: Review and Approved cards now show where the Short came from in the stream (like 1:42:07 - 1:42:41), with "Open stream there" (opens YouTube at that exact second) and "Copy time".
 - History: a new tab with every Short you upload, export or reject - its stream time, the stream's name and date, and a small picture. It stays even after the video files are deleted, so you can always go back and grab a screenshot.

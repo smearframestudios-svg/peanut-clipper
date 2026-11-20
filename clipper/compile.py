@@ -37,22 +37,45 @@ def _safe(name):
     return re.sub(r'[<>:"/\\|?*]+', "", name).strip()[:80] or "Compilation"
 
 
+SHAPES = ("vertical", "horizontal")
+
+
+def _src(c, m):
+    """(file, in, out, file length, width, height) of one clip for this compilation/collection's shape.
+    Collections keep both the finished vertical Short (vfile) and the horizontal moment with handles (file)."""
+    if c.get("kind") == "collection" and (c.get("shape", "vertical") == "vertical" or not m.get("file")):
+        w, h = (1080, 1920) if c.get("shape", "vertical") == "vertical" else (1920, 1080)
+        return m["vfile"], 0.0, m["vdur"], m["vdur"], w, h
+    return m["file"], m["a"], m["b"], m["dur"], 1920, 1080
+
+
 def _length(c):
-    return sum(m["b"] - m["a"] for m in c["moments"])
+    return sum(_src(c, m)[2] - _src(c, m)[1] for m in c["moments"])
 
 
 def _summary(c):
     return {"id": c["id"], "name": c["name"], "count": len(c["moments"]), "length": round(_length(c), 1),
-            "goal": c.get("goal", 480), "created": c.get("created", "")}
+            "goal": c.get("goal", 480), "created": c.get("created", ""), "kind": c.get("kind", "compilation")}
 
 
-def all_comps():
+def all_comps(kind="compilation"):
     out = []
     for f in sorted(FOLDER.glob("*/comp.json")) if FOLDER.exists() else []:
         c = load_json(f)
-        if c:
+        if c and c.get("kind", "compilation") == kind:
             out.append(_summary(c))
     return sorted(out, key=lambda x: x["created"], reverse=True)
+
+
+def memberships():
+    """Which collections each Review Short is in: {"job:id": ["GTA fails montage", ...]}."""
+    out = {}
+    for f in sorted(FOLDER.glob("*/comp.json")) if FOLDER.exists() else []:
+        c = load_json(f)
+        if c and c.get("kind") == "collection":
+            for m in c["moments"]:
+                out.setdefault(f"{m.get('job')}:{m.get('clip_id')}", []).append({"id": c["id"], "name": c["name"]})
+    return out
 
 
 def get(cid):
@@ -67,11 +90,14 @@ def info(cid):
     return dict(c, length=round(_length(c), 1))
 
 
-def new(name, goal=480):
+def new(name, goal=480, kind="compilation"):
     cid = dt.datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:4]
-    c = {"id": cid, "name": (name or "").strip()[:60] or "New compilation", "goal": int(goal or 480),
+    kind = "collection" if kind == "collection" else "compilation"
+    c = {"id": cid, "name": (name or "").strip()[:60] or f"New {kind}", "goal": int(goal or 480),
          "transition": "cut", "numbers": False, "created": dt.datetime.now().isoformat(timespec="seconds"),
-         "moments": []}
+         "kind": kind, "moments": []}
+    if kind == "collection":
+        c["shape"] = "vertical"
     _path(cid).parent.mkdir(parents=True, exist_ok=True)
     save_json(_path(cid), c)
     return c
@@ -95,12 +121,15 @@ def edit(cid, action, body):
             c["transition"] = body["transition"]
         if "numbers" in body:
             c["numbers"] = bool(body["numbers"])
+        if body.get("shape") in SHAPES:
+            c["shape"] = body["shape"]
     elif action == "remove":
         m = find()
         if m:
             ms.remove(m)
-            for k in ("file", "poster"):
-                safe_unlink(f.parent / m[k])
+            for k in ("file", "vfile", "poster"):
+                if m.get(k):
+                    safe_unlink(f.parent / m[k])
     elif action == "trim":
         m = find()
         if m:
@@ -179,6 +208,59 @@ def add_moment(cfg, cid, sid, idx):
     progress(100, f"Added to {c['name']} ({len(c['moments'])} moments, {_mmss(_length(c))})")
 
 
+def add_short(cfg, cid, job, clip_id):
+    """Put a Review Short into a collection: a copy of the finished vertical Short, plus the horizontal moment
+    (with handles) cut from the stream while it's still on the PC - so a montage can be either shape."""
+    from .library import stream_info
+    f = _path(cid)
+    c = get(cid)
+    jf = Path(cfg["paths"]["output_dir"]) / job / "clips.json"
+    data = load_json(jf)
+    clip = next((x for x in (data or {}).get("clips", []) if x["id"] == clip_id), None)
+    if not clip:
+        raise SystemExit("[!] That Short wasn't found.")
+    if any(m.get("job") == job and m.get("clip_id") == clip_id for m in c["moments"]):
+        progress(100, "Already in this collection")
+        return
+    short = jf.parent / (clip.get("file") or "")
+    if not clip.get("file") or not short.is_file():
+        raise SystemExit("[!] That Short's video was already deleted.")
+    mid = uuid.uuid4().hex[:8]
+    progress(10, "Copying the Short")
+    vname = f"v_{mid}.mp4"
+    shutil.copy2(short, f.parent / vname)
+    vdur = probe(f.parent / vname)[0]
+    poster = f"m_{mid}.jpg"
+    if clip.get("poster") and (jf.parent / clip["poster"]).is_file():
+        shutil.copy2(jf.parent / clip["poster"], f.parent / poster)
+    else:
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", "1", "-i", vname, "-frames:v", "1", "-vf", "scale=360:-2",
+                        poster], cwd=f.parent)
+    m = {"mid": mid, "vfile": vname, "vdur": round(vdur, 2), "file": "", "a": 0.0, "b": round(vdur, 2), "dur": 0.0,
+         "poster": poster, "title": clip.get("title", ""), "job": job, "clip_id": clip_id, "kind": "short",
+         "query": "", "added": dt.datetime.now().isoformat(timespec="seconds")}
+    info = stream_info(data, clip)
+    m.update(stream_date=info["stream_date"], stream_t=info["stream_start"], stream_title=info["stream_title"],
+             stream_link=info["stream_link"])
+    src = Path(clip.get("source_file") or "")
+    if src.is_file():                       # the horizontal moment, for 16:9 montages / Premiere handles
+        progress(40, "Copying the horizontal moment")
+        dur, _, _ = probe(src)
+        s, e = float(clip["src_start"]), float(clip["src_end"])
+        ca, cb = max(0.0, s - HANDLE), min(dur, e + HANDLE)
+        name = f"m_{mid}.mp4"
+        cmd = ["ffmpeg", "-v", "error", "-y", "-ss", f"{ca:.3f}", "-i", str(src), "-t", f"{cb - ca:.3f}",
+               "-map", "0:v:0", "-map", "0:a:0?", "-vf", NORM, "-af", "aresample=async=1"] + _enc(cfg) + \
+            ["-pix_fmt", "yuv420p", "-fps_mode", "cfr"] + AUDIO + ["-movflags", "+faststart", name]
+        if subprocess.run(cmd, cwd=f.parent).returncode == 0:
+            fd = probe(f.parent / name)[0]
+            m.update(file=name, a=round(s - ca, 2), b=round(min(fd, e - ca), 2), dur=round(fd, 2))
+    c = get(cid)
+    c["moments"].append(m)
+    save_json(f, c)
+    progress(100, f"Added to {c['name']} ({len(c['moments'])} Shorts, {_mmss(_length(c))})")
+
+
 def _mmss(t):
     return f"{int(t // 60)}:{int(t % 60):02d}"
 
@@ -243,7 +325,7 @@ def export_video(cfg, cid):
     c = get(cid)
     ms = c["moments"]
     if not ms:
-        raise SystemExit("[!] This compilation has no moments yet.")
+        raise SystemExit("[!] There's nothing in it yet.")
     folder = _export_folder(cfg)
     stamp = dt.datetime.now().strftime("%Y-%m-%d")
     out = _unique(folder / f"{stamp} - {_safe(c['name'])}.mp4")
@@ -254,10 +336,17 @@ def export_video(cfg, cid):
         pieces = []
         n = len(ms)
         for k, m in enumerate(ms, 1):
-            progress(2 + 80 * (k - 1) / n, f"Preparing moment {k} of {n}")
-            src = _path(cid).parent / m["file"]
-            cmd = ["ffmpeg", "-v", "error", "-y", "-ss", f"{m['a']:.3f}", "-t", f"{m['b'] - m['a']:.3f}", "-i", str(src)]
-            vf = "[0:v]setpts=PTS-STARTPTS"
+            progress(2 + 80 * (k - 1) / n, f"Preparing clip {k} of {n}")
+            name, a, b, _, W, H = _src(c, m)
+            src = _path(cid).parent / name
+            cmd = ["ffmpeg", "-v", "error", "-y", "-ss", f"{a:.3f}", "-t", f"{b - a:.3f}", "-i", str(src)]
+            _, sw, sh = probe(src)
+            if (sw, sh) == (W, H):
+                vf = "[0:v]setpts=PTS-STARTPTS"
+            else:                                  # a vertical Short in a 16:9 montage: blurred sides
+                vf = (f"[0:v]setpts=PTS-STARTPTS,split[x][y];[x]scale={W}:{H}:force_original_aspect_ratio=increase,"
+                      f"crop={W}:{H},boxblur=22:2,eq=brightness=-0.15[bg];[y]scale=-2:{H}[fg];"
+                      f"[bg][fg]overlay=(W-w)/2:0,setsar=1")
             if c.get("transition") == "flash" and k > 1:
                 vf += ",fade=t=in:st=0:d=0.25:color=white"
             if c.get("numbers"):
@@ -296,7 +385,7 @@ def export_video(cfg, cid):
     c = get(cid)
     c["exported_to"] = str(out)
     save_json(_path(cid), c)
-    progress(100, f"Compilation exported ({_mmss(probe(out)[0])})")
+    progress(100, f"{'Montage' if c.get('kind') == 'collection' else 'Compilation'} exported ({_mmss(probe(out)[0])})")
     return out
 
 
@@ -313,13 +402,19 @@ def _xml(c, files, folder):
         return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
     vid, aud, t = [], [], 0
+    W, H = 1920, 1080
     for k, (m, p) in enumerate(zip(c["moments"], files), 1):
-        fd = int(round(m["dur"] * FPS))
-        i0, i1 = int(round(m["a"] * FPS)), int(round(m["b"] * FPS))
+        _, a, b, d, W, H = _src(c, m)
+        try:
+            _, fw, fh = probe(p)               # the file's real size (a vertical Short in a 16:9 sequence)
+        except RuntimeError:
+            fw, fh = W, H
+        fd = int(round(d * FPS))
+        i0, i1 = int(round(a * FPS)), int(round(b * FPS))
         s, e = t, t + (i1 - i0)
         fileel = (f'<file id="file-{k}"><name>{esc(p.name)}</name><pathurl>{url(p)}</pathurl>{rate()}'
-                  f"<duration>{fd}</duration><media><video><samplecharacteristics>{rate()}<width>1920</width>"
-                  f"<height>1080</height></samplecharacteristics></video><audio><samplecharacteristics>"
+                  f"<duration>{fd}</duration><media><video><samplecharacteristics>{rate()}<width>{fw}</width>"
+                  f"<height>{fh}</height></samplecharacteristics></video><audio><samplecharacteristics>"
                   f"<depth>16</depth><samplerate>48000</samplerate></samplecharacteristics><channelcount>2</channelcount>"
                   f"</audio></media></file>")
         common = f"<name>{esc(p.stem)}</name><enabled>TRUE</enabled><duration>{fd}</duration>{rate()}" \
@@ -331,7 +426,7 @@ def _xml(c, files, folder):
         aud.append(f'<clipitem id="a{k}">{common}<file id="file-{k}"/><sourcetrack><mediatype>audio</mediatype>'
                    f'<trackindex>1</trackindex></sourcetrack>{links}</clipitem>')
         t = e
-    fmt = (f"<format><samplecharacteristics>{rate()}<width>1920</width><height>1080</height>"
+    fmt = (f"<format><samplecharacteristics>{rate()}<width>{W}</width><height>{H}</height>"
            f"<pixelaspectratio>square</pixelaspectratio><fielddominance>none</fielddominance></samplecharacteristics></format>")
     return ('<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE xmeml>\n<xmeml version="4">'
             f'<sequence id="sequence-1"><name>{esc(c["name"])}</name><duration>{t}</duration>{rate()}'
@@ -344,15 +439,15 @@ def export_premiere(cfg, cid):
     """Every moment as its own file (with handles) + a sequence XML with each one on its own cut."""
     c = get(cid)
     if not c["moments"]:
-        raise SystemExit("[!] This compilation has no moments yet.")
+        raise SystemExit("[!] There's nothing in it yet.")
     folder = _unique(_export_folder(cfg) / f"{_safe(c['name'])} (Premiere)")
     folder.mkdir(parents=True)
     files = []
     n = len(c["moments"])
     for k, m in enumerate(c["moments"], 1):
-        progress(5 + 85 * (k - 1) / n, f"Copying moment {k} of {n}")
+        progress(5 + 85 * (k - 1) / n, f"Copying clip {k} of {n}")
         dest = folder / f"{k:02d} - {_safe(m['title'])[:50]}.mp4"
-        shutil.copy2(_path(cid).parent / m["file"], dest)
+        shutil.copy2(_path(cid).parent / _src(c, m)[0], dest)
         files.append(dest)
     xml = folder / f"{_safe(c['name'])}.xml"
     xml.write_text(_xml(c, files, folder), encoding="utf-8")

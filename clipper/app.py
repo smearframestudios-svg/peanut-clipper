@@ -40,7 +40,7 @@ class Runner:
     def running(self):
         return self.proc is not None and self.proc.poll() is None
 
-    QUEUEABLE = ("rerender", "export", "fromsearch", "compadd", "compexport")
+    QUEUEABLE = ("rerender", "export", "fromsearch", "compadd", "compexport", "coladd")
 
     def start(self, kind, args, label, section_len=None):
         """True = started, "queued" = waits for the current job, False = refused (something else is running)."""
@@ -286,8 +286,11 @@ def make_handler():
                 f = library.THUMBS / Path(p.split("/")[2]).name
                 return self._file(f) if f.is_file() else self._send(404, "not found")
             if p == "/api/comps":
-                from .compile import CRASH_WORDS, all_comps
-                return self._send(200, {"comps": all_comps(), "crash_words": CRASH_WORDS})
+                from urllib.parse import parse_qs
+                from .compile import CRASH_WORDS, all_comps, memberships
+                kind = (parse_qs(urlparse(self.path).query).get("kind") or ["compilation"])[0]
+                return self._send(200, {"comps": all_comps(kind), "crash_words": CRASH_WORDS,
+                                        "members": memberships() if kind == "collection" else {}})
             if p == "/api/comp":
                 from urllib.parse import parse_qs
                 from .compile import info
@@ -433,9 +436,12 @@ def make_handler():
                 elif kind == "compadd":
                     args = ["compadd", str(body["comp"]), str(body["sid"]), str(int(body["idx"]))]
                     label = "Adding the moment to the compilation..."
+                elif kind == "coladd":
+                    args = ["coladd", str(body["comp"]), str(body["job"]), str(body["id"])]
+                    label = "Adding the Short to the collection..."
                 elif kind == "compexport":
                     args = ["compexport", str(body["comp"])] + (["--premiere"] if body.get("premiere") else [])
-                    label = "Exporting the compilation for Premiere..." if body.get("premiere") else "Exporting the compilation..."
+                    label = "Exporting for Premiere..." if body.get("premiere") else "Exporting the video..."
                 else:
                     return self._send(400, {"error": "unknown job"})
                 started = RUNNER.start(kind, args, label, section if kind in ("vod", "search") else (8 if kind == "frame" else None))
@@ -488,7 +494,7 @@ def make_handler():
                 from . import compile as comp
                 try:
                     if body.get("action") == "new":
-                        c = comp.new(body.get("name"), body.get("goal", 480))
+                        c = comp.new(body.get("name"), body.get("goal", 480), body.get("kind", "compilation"))
                         return self._send(200, dict(c, length=0))
                     return self._send(200, comp.edit(body["id"], body["action"], body) or {"ok": True})
                 except SystemExit as e:
