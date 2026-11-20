@@ -1,9 +1,13 @@
 # What's new
 
+## 1.3.2
+- Update while a job runs: pressing "Update now" during a job no longer stops you. It updates by itself as soon as the job finishes.
+- Easier to read: in "What's new", the first words of each change are bold.
+
 ## 1.3.1
-- **No more "Something is already running":** you can edit a Short (Update Short), export, or cut a keyword match while a stream is still being made. It waits in line and starts by itself when the current job finishes.
-- **Waiting line shown:** the progress bar says how many jobs are waiting.
-- **Approve and Reject** keep working while a job runs, like before.
+- Edit while a job runs: no more "Something is already running". You can edit a Short (Update Short), export, or cut a keyword match while a stream is still being made. It waits in line and starts by itself when the current job finishes.
+- Waiting line shown: the progress bar says how many jobs are waiting.
+- Approve and Reject keep working while a job runs, like before.
 
 ## 1.3.0
 - Saved layouts: make as many layouts as you want (e.g. "GTA", "ARC Raiders", "Gameplay only") on the Layouts & Banners screen. Your current layout is kept as "Main".

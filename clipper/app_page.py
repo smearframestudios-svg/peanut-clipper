@@ -399,19 +399,24 @@ $('goAuto').onclick=async()=>{await api('/api/run',{kind:'auto'});lastJobKey='ru
 
 // ---------- updates / quit ----------
 function cover(t,m){$('coverT').textContent=t;$('coverM').textContent=m||'';$('cover').classList.add('on')}
+// "What's new": **bold** shows bold, and the few words before a colon on each line are bold too
+function notesHtml(t){return esc(t.replace(/^## /gm,'Version ')).split('\n').map(l=>{
+  l=l.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
+  return /<b>/.test(l)?l:l.replace(/^(\s*[-•]\s*)([^:<]{1,40}?:)(\s)/,(m,a,b,c)=>b.trim().split(/\s+/).length<=5?a+'<b>'+b+'</b>'+c:m)}).join('\n')}
 function drawUpdate(u){
   $('pUpd').style.display=u.available&&!u.busy?'':'none';
   $('vCur').textContent=u.current||'';
-  $('vState').textContent=u.busy?u.msg:(u.available?`Version ${u.latest} is available`:(u.latest?'You have the latest version':(u.error?'Couldn\'t reach GitHub - check your internet':'')));
-  $('vUpdate').style.display=u.available&&!u.busy?'':'none';
-  $('vNotes').style.display=u.available&&u.notes?'block':'none';$('vNotes').textContent=(u.notes||'').replace(/^## /gm,'Version ');
+  $('vState').textContent=u.busy?u.msg:u.after_job?'Updates by itself when the current job finishes':(u.available?`Version ${u.latest} is available`:(u.latest?'You have the latest version':(u.error?'Couldn\'t reach GitHub - check your internet':'')));
+  $('vUpdate').style.display=u.available&&!u.busy&&!u.after_job?'':'none';
+  $('vNotes').style.display=u.available&&u.notes?'block':'none';$('vNotes').innerHTML=notesHtml(u.notes||'');
   if(u.busy){cover('Updating Peanut Clipper...',u.msg);reloadWhenBack=true}
   else if(u.msg&&u.msg.startsWith('Update failed')){$('cover').classList.remove('on');reloadWhenBack=false;toast(esc(u.msg))}
 }
 $('pUpd').onclick=()=>show('settings');
 $('vCheck').onclick=async()=>{await api('/api/check_update',{});$('vState').textContent='Checking...';setTimeout(poll,2500)};
-$('vUpdate').onclick=async()=>{if(S.job&&S.job.running){toast('Wait for the current job to finish first.');return}
-  await api('/api/update',{});cover('Updating Peanut Clipper...','Downloading...');reloadWhenBack=true};
+$('vUpdate').onclick=async()=>{const r=await api('/api/update',{});
+  if(r.after_job){toast('<b>Update in line:</b> it updates by itself when the current job finishes.');poll();return}
+  cover('Updating Peanut Clipper...','Downloading...');reloadWhenBack=true};
 $('quit').onclick=async()=>{if(S&&S.job&&S.job.running&&!confirm('A job is still running. Quit anyway? It will be stopped.'))return;
   quitting=true;await fetch('/api/quit',{method:'POST',body:'{}'}).catch(()=>{});
   cover('Peanut Clipper is closed','You can close this tab. Open it again from the Desktop icon.');document.querySelector('.spin').style.display='none'};

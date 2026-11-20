@@ -109,6 +109,9 @@ class Runner:
     def _next(self):
         """Start the next waiting job, if any (the finished job's result stays on screen briefly first)."""
         if not self.queue:
+            if UPDATE.get("after_job") and not UPDATE.get("busy"):
+                UPDATE["after_job"] = False
+                threading.Thread(target=run_update, args=(UPDATE_SRV[0],), daemon=True).start()
             return
         time.sleep(1.5)                  # let the page see the finished job before the next one starts
         with self.lock:
@@ -392,7 +395,10 @@ def make_handler():
                 return self._send(200, {"ok": True})
             if p == "/api/update":
                 if RUNNER.running:
-                    return self._send(409, {"error": "Wait for the current job to finish (or cancel it) first."})
+                    # don't cut the job short: update by itself as soon as it (and anything waiting in line) is done
+                    UPDATE["after_job"] = True
+                    UPDATE_SRV[0] = self.server
+                    return self._send(200, {"ok": True, "after_job": True})
                 if UPDATE.get("busy"):
                     return self._send(409, {"error": "Already updating."})
                 threading.Thread(target=run_update, args=(self.server,), daemon=True).start()
@@ -447,7 +453,8 @@ def make_handler():
     return H
 
 
-UPDATE = {"current": None, "latest": None, "available": False, "notes": "", "busy": False, "msg": ""}
+UPDATE_SRV = [None]     # the server to restart after an update that waited for a job
+UPDATE = {"after_job": False, "current": None, "latest": None, "available": False, "notes": "", "busy": False, "msg": ""}
 
 
 def check_updates():
