@@ -78,6 +78,7 @@ a{color:var(--blue)}
 .ed-main{flex:1;min-width:0}
 .ed-main video{width:100%;background:#000;border-radius:10px;display:block;max-height:52vh}
 .ed-side{width:230px;flex:none}.ed-side video{width:100%;aspect-ratio:9/16;background:#000;border-radius:10px}
+.tl .sel{cursor:grab}.tl.moving,.tl.moving .sel{cursor:grabbing}
 .tl{position:relative;height:64px;margin:14px 0 6px;background:#0c0d0f;border:1px solid var(--line);border-radius:10px;cursor:pointer;user-select:none;overflow:hidden}
 .tl .tick{position:absolute;top:0;bottom:0;width:1px;background:#2a2d34}
 .tl .tick span{position:absolute;top:2px;left:4px;font-size:11px;color:#6d717b;white-space:nowrap}
@@ -649,10 +650,15 @@ document.querySelectorAll('[data-n]').forEach(b=>b.onclick=()=>{if(!E)return;con
 const tAt=e=>{const r=$('tl').getBoundingClientRect();return E.vs+(Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)))*(E.ve-E.vs)};
 $('hIn').onmousedown=e=>{tlDrag='in';e.stopPropagation();e.preventDefault()};
 $('hOut').onmousedown=e=>{tlDrag='out';e.stopPropagation();e.preventDefault()};
+// drag the whole selection: both ends move together and the length stays the same
+let grab=0;
+$('tlSel').onmousedown=e=>{if(!E)return;tlDrag='move';grab=tAt(e)-E.a;$('tl').classList.add('moving');e.stopPropagation();e.preventDefault()};
 $('tl').onmousedown=e=>{if(!E)return;$('edSrc').currentTime=tAt(e);drawTL()};
-window.addEventListener('mousemove',e=>{if(!tlDrag||!E)return;const t=tAt(e);if(tlDrag==='in')E.a=t;else E.b=t;
+window.addEventListener('mousemove',e=>{if(!tlDrag||!E)return;const t=tAt(e);
+  if(tlDrag==='move'){const len=E.b-E.a;E.a=Math.max(0,Math.min(E.dur-len,t-grab));E.b=E.a+len;$('edSrc').currentTime=E.a;drawTL();return}
+  if(tlDrag==='in')E.a=t;else E.b=t;
   E.a=Math.max(0,Math.min(E.a,E.b-3));E.b=Math.min(E.dur,Math.max(E.b,E.a+3));$('edSrc').currentTime=tlDrag==='in'?E.a:E.b;drawTL()});
-window.addEventListener('mouseup',()=>{if(tlDrag){tlDrag=null;if(E&&(E.a<E.vs+1||E.b>E.ve-1)){setView();drawTL()}}});
+window.addEventListener('mouseup',()=>{if(tlDrag){tlDrag=null;$('tl').classList.remove('moving');if(E&&(E.a<E.vs+1||E.b>E.ve-1)){setView();drawTL()}}});
 let stopAt=null;
 $('edSrc').addEventListener('timeupdate',()=>{if(!E)return;if(stopAt!==null&&$('edSrc').currentTime>=stopAt){$('edSrc').pause();stopAt=null}drawTL()});
 $('edPlaySel').onclick=()=>{$('edSrc').currentTime=E.a;stopAt=E.b;$('edSrc').play()};

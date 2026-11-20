@@ -1,5 +1,8 @@
 # What's new
 
+## 1.3.5
+- Slide the whole selection: in the trim editor, grab the yellow selected area and drag it left or right. Both ends move together and the length stays the same. The handles still change the start and end on their own.
+
 ## 1.3.4
 - You pick how much to convert: Settings, Trim editor, "Minutes to convert for editing" (4, 6, 10, 20 or 30 min, centred on the Short). The default is 6 minutes, so the editor is ready even faster.
 - Need more room later: raise the minutes in Settings and open the Short again. Only then does it convert the bigger part.
