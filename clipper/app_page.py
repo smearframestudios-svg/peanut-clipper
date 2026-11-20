@@ -113,6 +113,18 @@ a{color:var(--blue)}
 .sec-box .fr-stage{max-width:560px}
 .ed-side .live{width:100%;aspect-ratio:9/16;border-radius:10px;background:#000;display:block}
 .ed-side .btn{padding:7px 10px;font-size:13px;width:100%;margin-top:6px}
+.cmp-head{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.cmp-bar{height:12px;flex:1;min-width:200px;background:#0f1012;border:1px solid var(--line);border-radius:99px;overflow:hidden}
+.cmp-bar>i{display:block;height:100%;background:var(--acc)}.cmp-bar.done>i{background:var(--ok)}
+.mo{display:flex;gap:12px;align-items:center;background:var(--panel2);border-radius:10px;padding:8px;margin-bottom:8px;border:2px solid transparent}
+.mo.drag{opacity:.4}.mo.over{border-color:var(--acc)}.mo.on{border-color:var(--blue)}
+.mo .num{font:700 14px Consolas,monospace;color:var(--mute);width:26px;text-align:right;cursor:grab}
+.mo img{width:96px;height:54px;object-fit:cover;border-radius:6px;background:#000;flex:none}
+.mo .tt{flex:1;min-width:0}.mo .tt b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mo .btn{padding:6px 9px;font-size:12px}.mo .grp{display:flex;gap:4px;align-items:center}
+.mo .grp .k{font-size:12px;color:var(--mute);margin-right:2px}
+.cmp-player video{width:100%;max-height:48vh;background:#000;border-radius:10px;display:block}
+.btn.added{color:#9ee6bd;border-color:#2fb36d}
 .ed-foot{display:flex;align-items:center;gap:12px;margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
 .ov{display:flex;align-items:center;gap:12px;background:var(--panel2);border-radius:10px;padding:10px;margin-bottom:8px}
 .ov img{width:54px;height:96px;object-fit:contain;background:repeating-conic-gradient(#333 0 25%,#222 0 50%) 0 0/12px 12px;border-radius:6px}
@@ -132,6 +144,7 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
     <button data-t="make" class="on">Make Shorts</button>
     <button data-t="review">Review<span class="badge" id="nPending"></span></button>
     <button data-t="upload">Approved<span class="badge" id="nApproved"></span></button>
+    <button data-t="comps">Compilations</button>
     <button data-t="settings">Settings</button>
     <button data-t="layout">Layouts &amp; Banners</button>
   </nav>
@@ -163,6 +176,7 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
     </div>
     <div class="row" style="margin-top:10px">
       <input class="big" type="text" id="kwWords" placeholder='e.g.  drive, use a blinker, red light'>
+      <button class="btn" id="kwCrash" title="Fill in GTA crash words">Crash words</button>
       <button class="btn main" id="kwGo">Search</button>
     </div>
     <div class="row tiny" style="margin-top:10px;gap:18px">
@@ -174,6 +188,7 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
     <p class="tiny mute" id="kwCpu" style="display:none;margin:10px 0 0">Heads up: speech is running on the CPU, so searching a full stream can take an hour or more. Try "Only part of the stream" first.</p>
     <div class="kw-res" id="kwRes" style="display:none">
       <div class="row"><b id="kwHead"></b><span style="margin-left:auto" class="tiny mute">Earlier searches</span><select id="kwPick"></select></div>
+      <div class="row tiny" style="margin-top:8px"><span class="mute">+ Add to compilation puts moments into:</span><select id="kwComp"></select><span class="mute" id="kwCompLen"></span></div>
       <div class="kw-player" id="kwPlayer"><video id="kwVid" controls preload="none"></video></div>
       <div id="kwList" style="margin-top:12px"></div>
     </div>
@@ -223,6 +238,32 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
     <div class="plan" id="plan"></div>
     <div class="row"><button class="btn main" id="goUpload">Upload all to YouTube &amp; schedule</button>
     <span class="tiny mute">The first time, a Google window opens: pick the <b>BurntPeanutXD</b> channel.</span></div>
+  </div>
+</section>
+
+<section id="comps">
+  <h2>Compilations</h2><p class="sub">Long videos made of many moments (like every GTA crash), from keyword searches on any number of streams.</p>
+  <div class="card">
+    <div class="cmp-head"><select id="cmpPick"></select><button class="btn" id="cmpNew">New compilation</button>
+      <button class="btn" id="cmpRen">Rename</button><button class="btn no" id="cmpDel">Delete</button>
+      <span style="margin-left:auto" class="tiny mute">Goal (minutes) <input type="number" class="small" id="cmpGoal" min="1" max="240" step="1" style="width:80px"></span></div>
+    <div class="cmp-head" style="margin-top:14px"><b id="cmpLen" style="font:700 18px Consolas,monospace;color:var(--acc)"></b>
+      <div class="cmp-bar" id="cmpBar"><i></i></div><span class="tiny mute" id="cmpLeft"></span></div>
+  </div>
+  <div class="card" id="cmpBody">
+    <div class="cmp-player" id="cmpPlayer" style="display:none;margin-bottom:12px"><video id="cmpVid" controls preload="none"></video>
+      <div class="row tiny mute" style="margin-top:6px"><span id="cmpNow"></span><button class="btn" id="cmpStop" style="margin-left:auto;padding:6px 10px">Stop</button></div></div>
+    <div class="row" style="margin-bottom:10px"><b id="cmpCount"></b><span class="tiny mute">Drag the number to reorder.</span>
+      <span style="margin-left:auto" class="row"><button class="btn" id="cmpPlayAll">&#9654; Play all</button><button class="btn" id="cmpShuffle">Shuffle</button><button class="btn" id="cmpOldest">Oldest first</button></span></div>
+    <div id="cmpList"></div>
+  </div>
+  <div class="card">
+    <div class="row"><span class="tiny mute" style="min-width:120px">Between moments</span>
+      <span class="seg" id="cmpTr"><button data-v="cut">Cut</button><button data-v="flash">Quick flash</button><button data-v="fade">Crossfade</button></span>
+      <span class="tiny mute" style="margin-left:18px">Moment numbers on screen</span>
+      <span class="seg" id="cmpNum"><button data-v="1">On</button><button data-v="0">Off</button></span></div>
+    <div class="row" style="margin-top:14px"><button class="btn main" id="cmpExport">Export video (16:9)</button><button class="btn" id="cmpPrem">Export for Premiere</button>
+      <span class="tiny mute">Premiere = every moment as its own file + a ready-made sequence (XML) with each one on its own cut. In Premiere: File &rarr; Import &rarr; the .xml.</span></div>
   </div>
 </section>
 
@@ -419,7 +460,7 @@ async function api(path,body){
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>show(b.dataset.t));
 function show(t){document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x.dataset.t===t));
   document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id===t));
-  if(t==='review')loadClips(); if(t==='upload')loadPlan(); if(t==='settings')fillSettings(); if(t==='layout')initLayout();}
+  if(t==='review')loadClips(); if(t==='comps')loadComps(); if(t==='upload')loadPlan(); if(t==='settings')fillSettings(); if(t==='layout')initLayout();}
 
 // ---------- state polling ----------
 let down=0, quitting=false, reloadWhenBack=false;
@@ -439,7 +480,7 @@ function fmtTime(t){if(!t)return'';let[h,m]=t.split(':').map(Number);const ap=h>
 function drawJob(j){
   const card=$('jobCard');if(!j.kind){card.style.display='none';return}
   card.style.display='block';
-  const titles={syncfix:'Converting the stream',search:'Searching for keywords',fromsearch:'Cutting a match',rerender:'Re-cutting a Short',export:'Exporting for Premiere',vod:'Making Shorts',clips:'Twitch top clips',upload:'Uploading',auto:'Auto mode',frame:'Grabbing a frame',hwtest:'Graphics card test'};
+  const titles={syncfix:'Converting the stream',compadd:'Adding to the compilation',compexport:'Exporting the compilation',search:'Searching for keywords',fromsearch:'Cutting a match',rerender:'Re-cutting a Short',export:'Exporting for Premiere',vod:'Making Shorts',clips:'Twitch top clips',upload:'Uploading',auto:'Auto mode',frame:'Grabbing a frame',hwtest:'Graphics card test'};
   $('jobTitle').textContent=(titles[j.kind]||'Working')+(j.running?'...':'');
   $('jobPct').textContent=j.running?j.pct+'%':'';
   $('bar').className='bar'+(j.ok===false?' err':(j.ok?' done':''));$('bar').firstElementChild.style.width=(j.ok?100:j.pct)+'%';
@@ -453,6 +494,9 @@ function drawJob(j){
     if(j.ok&&j.kind==='upload'){loadPlan()}
     if(j.ok&&j.kind==='export'){toast('<b>Exported for Premiere.</b><br><span class="tiny">'+esc(S.settings.export_folder||S.default_export)+'</span>');loadPlan()}
     if(j.ok&&j.kind==='search'){loadSearches(true)}
+    if(j.kind==='compadd'){addingNow={};loadComps();if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
+    if(j.ok&&j.kind==='compexport'){loadComps();const f=S.settings.export_folder||S.default_export;
+      toast('<b>'+esc(j.label)+'</b><br><span class="tiny">'+esc(f)+'</span><br><button class="link" onclick="api(\'/api/open_folder\',{path:'+esc(JSON.stringify(f)).replace(/'/g,'&#39;')+'})">Open the folder</button>')}
     if(j.kind==='fromsearch'){if(KW)openSearch(KW.sid,true);
       if(j.ok&&S.last_made&&!S.last_made.export){api('/api/clips').then(cs=>{const c=cs.find(x=>x.job===S.last_made.job&&x.id===S.last_made.id);if(c)openEditor(c)})}
       if(j.ok&&S.last_made&&S.last_made.export)toast('<b>Exported for Premiere.</b><br><span class="tiny">'+esc(S.settings.export_folder||S.default_export)+'</span>')}
@@ -520,8 +564,9 @@ async function openSearch(sid,keepPlayer){
   box.innerHTML=KW.matches.map(m=>`<div class="mt"><div class="tm">${T(m.t+KW.offset)}</div>
     <div class="tx"><div class="chips" style="margin-bottom:4px">${m.queries.map(q=>`<span class="chip">${m.kind==='chat'?'chat: ':''}${esc(q)}</span>`).join('')}${m.made?`<span class="made">&#10003; ${m.made==='exported'?'exported':'made into a Short'}</span>`:''}</div>
     ${esc(m.text).replace(/\[\[(.+?)\]\]/g,'<mark>$1</mark>')}</div>
-    <div class="bt"><button class="btn" data-a="play" data-i="${m.i}">&#9654; Preview</button><button class="btn main" data-a="short" data-i="${m.i}">Make Short</button><button class="btn" data-a="export" data-i="${m.i}">Export for Premiere</button></div></div>`).join('');
+    <div class="bt"><button class="btn" data-a="play" data-i="${m.i}">&#9654; Preview</button><button class="btn main" data-a="short" data-i="${m.i}">Make Short</button><button class="btn" data-a="export" data-i="${m.i}">Export for Premiere</button><button class="btn" data-a="comp" data-i="${m.i}">+ Add to compilation</button></div></div>`).join('');
   box.querySelectorAll('[data-a]').forEach(b=>b.onclick=async()=>{const m=KW.matches.find(x=>x.i==b.dataset.i);
+    if(b.dataset.a==='comp'){addToComp(m);return}
     if(!KW.source_available){toast('The stream for this search was deleted. Run the search again to re-download it.');return}
     if(b.dataset.a==='play'&&KW.needs_sync){pendingPreview=m.i;await api('/api/run',{kind:'syncfix',sid:KW.sid});lastJobKey='running';
       toast('Converting this stream so it plays in sync (one time, a few minutes). Preview starts by itself when it\'s done.');poll();return}
@@ -530,7 +575,107 @@ async function openSearch(sid,keepPlayer){
       const go=()=>{v.currentTime=Math.max(0,m.t-8);v.play()};if(v.readyState>0)go();else v.addEventListener('loadedmetadata',go,{once:true});
       $('kwPlayer').scrollIntoView({behavior:'smooth',block:'center'});return}
     const r=await api('/api/run',{kind:'fromsearch',sid:KW.sid,idx:m.i,export:b.dataset.a==='export',layout:$('mkLayout').value});lastJobKey='running';if(r.queued)toast('<b>In line:</b> this match is cut when the current job finishes.');poll()});
+  markAdded();
 }
+
+// ---------- compilations ----------
+let CMP=null,CMPS=[],cmpCur=null,cmpStopAt=null,cmpQueue=null,crashWords='';
+try{cmpCur=localStorage.getItem('pc_comp')}catch(e){}
+const mmss=t=>{t=Math.max(0,Math.round(t));return Math.floor(t/60)+':'+String(t%60).padStart(2,'0')};
+const nth=n=>n+(['th','st','nd','rd'][(n%100>10&&n%100<14)?0:Math.min(n%10,4)%4]||'th');
+function setCur(id){cmpCur=id;try{localStorage.setItem('pc_comp',id||'')}catch(e){}}
+async function loadComps(){const r=await api('/api/comps');CMPS=r.comps;crashWords=r.crash_words;
+  if(!CMPS.some(c=>c.id===cmpCur))setCur(CMPS[0]?CMPS[0].id:null);
+  const opts=CMPS.map(c=>`<option value="${esc(c.id)}">${esc(c.name)} (${c.count})</option>`).join('');
+  $('cmpPick').innerHTML=opts||'<option value="">No compilations yet</option>';
+  $('kwComp').innerHTML=opts+'<option value="__new">+ New compilation...</option>';
+  if(cmpCur){$('cmpPick').value=cmpCur;$('kwComp').value=cmpCur}
+  CMP=cmpCur?await api('/api/comp?id='+encodeURIComponent(cmpCur)).catch(()=>null):null;drawComp();
+  if(KW)markAdded()}
+async function newComp(){const name=prompt('Name for the new compilation:',`GTA crashes vol. ${CMPS.length+1}`);if(!name)return null;
+  const c=await api('/api/comp',{action:'new',name,goal:480});setCur(c.id);await loadComps();return c.id}
+async function cmpDo(action,extra){if(!CMP)return;CMP=await api('/api/comp',Object.assign({id:CMP.id,action},extra||{}));
+  if(action==='delete'){setCur(null);await loadComps();return}drawComp();refreshCompMenus()}
+function refreshCompMenus(){const c=CMPS.find(x=>x.id===CMP.id);if(c){c.count=CMP.moments.length;c.name=CMP.name;
+  for(const sel of [$('cmpPick'),$('kwComp')]){const o=[...sel.options].find(o=>o.value===c.id);if(o)o.textContent=`${c.name} (${c.count})`}}
+  if(KW)markAdded()}
+function drawComp(){const has=!!CMP;['cmpRen','cmpDel','cmpExport','cmpPrem','cmpShuffle','cmpOldest','cmpPlayAll'].forEach(id=>$(id).disabled=!has);
+  $('cmpGoal').disabled=!has;
+  if(!has){$('cmpLen').textContent='0:00';$('cmpBar').firstElementChild.style.width='0';$('cmpLeft').textContent='';$('cmpCount').textContent='';
+    $('cmpList').innerHTML='<div class="empty">Start a compilation with <b>New compilation</b>, then use <b>+ Add to compilation</b> on keyword-search results (Make Shorts tab). Tip: the <b>Crash words</b> button fills in GTA crash words.</div>';return}
+  const len=CMP.moments.reduce((a,m)=>a+m.b-m.a,0),goal=CMP.goal||480;
+  $('cmpGoal').value=Math.round(goal/60);$('cmpLen').textContent=mmss(len);
+  $('cmpBar').className='cmp-bar'+(len>=goal?' done':'');$('cmpBar').firstElementChild.style.width=Math.min(100,len/goal*100)+'%';
+  $('cmpLeft').textContent=len>=goal?`Goal of ${mmss(goal)} reached`:`goal ${mmss(goal)} - add about ${mmss(goal-len)} more`;
+  $('cmpCount').textContent=`${CMP.moments.length} moment${CMP.moments.length===1?'':'s'}`;
+  document.querySelectorAll('#cmpTr button').forEach(b=>b.classList.toggle('on',b.dataset.v===(CMP.transition||'cut')));
+  document.querySelectorAll('#cmpNum button').forEach(b=>b.classList.toggle('on',b.dataset.v===(CMP.numbers?'1':'0')));
+  const list=$('cmpList');
+  if(!CMP.moments.length){list.innerHTML='<div class="empty">No moments yet. Run a keyword search on the Make Shorts tab and press <b>+ Add to compilation</b> on the good ones.</div>';return}
+  list.innerHTML=CMP.moments.map((m,k)=>`<div class="mo" draggable="true" data-mid="${m.mid}"><span class="num" title="Drag to reorder">${k+1}</span>
+    <img src="/comp/${esc(CMP.id)}/${esc(m.poster)}" alt="">
+    <div class="tt"><b title="${esc(m.title)}">${esc(m.title)}</b><span class="tiny mute">${esc(m.stream_date||'')} stream &middot; ${m.kind==='chat'?'chat: ':''}${esc(m.query)} &middot; ${mmss(m.b-m.a)}</span></div>
+    <span class="grp"><span class="k">Start</span><button class="btn" data-x="a,-1">-1s</button><button class="btn" data-x="a,1">+1s</button></span>
+    <span class="grp"><span class="k">End</span><button class="btn" data-x="b,-1">-1s</button><button class="btn" data-x="b,1">+1s</button></span>
+    <button class="btn" data-x="play">&#9654; Preview</button><button class="btn" data-x="up">Up</button><button class="btn" data-x="down">Down</button><button class="btn no" data-x="rm">Remove</button></div>`).join('');
+  list.querySelectorAll('.mo').forEach(row=>{const mid=row.dataset.mid,m=()=>CMP.moments.find(x=>x.mid===mid);
+    row.querySelectorAll('[data-x]').forEach(b=>b.onclick=async()=>{const x=b.dataset.x,mm=m(),i=CMP.moments.indexOf(mm);
+      if(x==='play'){cmpPlay([mm]);return}
+      if(x==='rm'){if(!confirm('Remove this moment from the compilation?'))return;await cmpDo('remove',{mid});return}
+      if(x==='up'||x==='down'){const j=x==='up'?i-1:i+1;if(j<0||j>=CMP.moments.length)return;const o=CMP.moments.map(q=>q.mid);[o[i],o[j]]=[o[j],o[i]];await cmpDo('order',{order:o});return}
+      const[k,d]=x.split(',');const a=k==='a'?mm.a+(+d):mm.a,bb=k==='b'?mm.b+(+d):mm.b;
+      if(a<0||bb>mm.dur){toast('That\'s as far as this moment goes. (Each moment keeps 5 seconds extra on each side.)');return}
+      if(bb-a<1)return;await cmpDo('trim',{mid,a,b:bb});if(k==='a')cmpPlay([m()],true);else cmpPlay([m()],false,true)});
+    row.addEventListener('dragstart',e=>{row.classList.add('drag');e.dataTransfer.setData('text/plain',mid)});
+    row.addEventListener('dragend',()=>row.classList.remove('drag'));
+    row.addEventListener('dragover',e=>{e.preventDefault();row.classList.add('over')});
+    row.addEventListener('dragleave',()=>row.classList.remove('over'));
+    row.addEventListener('drop',async e=>{e.preventDefault();row.classList.remove('over');const from=e.dataTransfer.getData('text/plain');if(!from||from===mid)return;
+      const o=CMP.moments.map(q=>q.mid).filter(q=>q!==from);o.splice(o.indexOf(mid)+(CMP.moments.findIndex(q=>q.mid===from)<CMP.moments.findIndex(q=>q.mid===mid)?1:0),0,from);await cmpDo('order',{order:o})})})}
+// preview: one moment, or every moment in order (Play all); nothing plays until a button is pressed
+function cmpPlay(list,startOnly,endOnly){if(!list.length)return;cmpQueue=list.slice();$('cmpPlayer').style.display='block';cmpNext(startOnly,endOnly);
+  $('cmpPlayer').scrollIntoView({behavior:'smooth',block:'nearest'})}
+function cmpNext(startOnly,endOnly){const v=$('cmpVid'),m=cmpQueue&&cmpQueue.shift();
+  document.querySelectorAll('.mo').forEach(r=>r.classList.toggle('on',!!m&&r.dataset.mid===m.mid));
+  if(!m){v.pause();cmpStopAt=null;$('cmpNow').textContent='';return}
+  const k=CMP.moments.findIndex(x=>x.mid===m.mid)+1;$('cmpNow').textContent=`Moment ${k}: ${m.title}`;
+  const src=`/comp/${CMP.id}/${m.file}`,from=endOnly?Math.max(m.a,m.b-3):m.a;cmpStopAt=startOnly?Math.min(m.b,m.a+3):m.b;
+  const go=()=>{v.currentTime=from;v.play().catch(()=>{})};
+  if(!v.src.endsWith(src)){v.preload='auto';v.src=src;v.addEventListener('loadedmetadata',go,{once:true});v.load()}else go()}
+$('cmpVid').addEventListener('timeupdate',()=>{if(cmpStopAt!==null&&$('cmpVid').currentTime>=cmpStopAt){cmpStopAt=null;
+  if(cmpQueue&&cmpQueue.length)cmpNext();else{$('cmpVid').pause();document.querySelectorAll('.mo.on').forEach(r=>r.classList.remove('on'))}}});
+$('cmpStop').onclick=()=>{cmpQueue=null;cmpStopAt=null;$('cmpVid').pause();$('cmpPlayer').style.display='none';document.querySelectorAll('.mo.on').forEach(r=>r.classList.remove('on'))};
+$('cmpPlayAll').onclick=()=>{if(CMP)cmpPlay(CMP.moments)};
+$('cmpPick').onchange=()=>{setCur($('cmpPick').value);$('cmpStop').click();loadComps()};
+$('cmpNew').onclick=newComp;
+$('cmpRen').onclick=()=>{const n=prompt('New name:',CMP.name);if(n)cmpDo('settings',{name:n})};
+$('cmpDel').onclick=()=>{if(confirm(`Delete "${CMP.name}" and its ${CMP.moments.length} moments? (Videos you already exported stay.)`))cmpDo('delete')};
+$('cmpGoal').onchange=()=>{const m=+$('cmpGoal').value;if(m>0)cmpDo('settings',{goal:m*60})};
+$('cmpShuffle').onclick=()=>cmpDo('shuffle');$('cmpOldest').onclick=()=>cmpDo('oldest');
+document.querySelectorAll('#cmpTr button').forEach(b=>b.onclick=()=>cmpDo('settings',{transition:b.dataset.v}));
+document.querySelectorAll('#cmpNum button').forEach(b=>b.onclick=()=>cmpDo('settings',{numbers:b.dataset.v==='1'}));
+async function cmpExport(premiere){if(!CMP||!CMP.moments.length){toast('Add some moments first.');return}
+  const r=await api('/api/run',{kind:'compexport',comp:CMP.id,premiere});lastJobKey='running';
+  toast(r.queued?'<b>In line:</b> the export starts when the current job finishes.':'<b>Exporting...</b> progress shows on the Make Shorts tab.');poll()}
+$('cmpExport').onclick=()=>cmpExport(false);$('cmpPrem').onclick=()=>cmpExport(true);
+// keyword search side: Crash words, "+ Add to compilation", "Added (4th)"
+$('kwCrash').onclick=()=>{const w=crashWords||'crash, crashed, wreck, my car, flip, flipped, oh no';const cur=$('kwWords').value.trim();
+  $('kwWords').value=cur&&!cur.includes(w)?cur+', '+w:w;$('kwChat').checked=true;$('kwSimilar').checked=true;
+  toast('<b>Crash words added.</b> Chat spikes ("KEKW", "LUL"...) help find the funny ones, so "Also search chat" is on.')};
+$('kwComp').onchange=async()=>{if($('kwComp').value==='__new'){const id=await newComp();if(!id)$('kwComp').value=cmpCur||'';return}
+  setCur($('kwComp').value);await loadComps()};
+let addingNow={};
+function markAdded(){if(!KW)return;const used={};(CMP&&CMP.moments||[]).forEach((m,k)=>{if(m.sid===KW.sid)used[m.i]=k+1});
+  const len=CMP?CMP.moments.reduce((a,m)=>a+m.b-m.a,0):0;$('kwCompLen').textContent=CMP?`now ${mmss(len)} of ${mmss(CMP.goal||480)}`:'';
+  document.querySelectorAll('[data-a=comp]').forEach(b=>{const i=+b.dataset.i;
+    if(used[i]){b.textContent=`Added (${nth(used[i])})`;b.classList.add('added');b.disabled=true}
+    else if(addingNow[KW.sid+':'+i]){b.textContent='Adding...';b.classList.remove('added');b.disabled=true}
+    else{b.textContent='+ Add to compilation';b.classList.remove('added');b.disabled=false}})}
+async function addToComp(m){if(!KW.source_available){toast('The stream for this search was deleted. Run the search again to re-download it.');return}
+  if(!cmpCur||!CMPS.some(c=>c.id===cmpCur)){const id=await newComp();if(!id)return}
+  addingNow[KW.sid+':'+m.i]=true;markAdded();
+  try{const r=await api('/api/run',{kind:'compadd',comp:cmpCur,sid:KW.sid,idx:m.i});lastJobKey='running';if(r.queued)toast('<b>In line:</b> added when the current job finishes.');poll()}
+  catch(e){delete addingNow[KW.sid+':'+m.i];markAdded()}}
 
 // ---------- review ----------
 async function loadClips(){
@@ -975,5 +1120,5 @@ $('ovFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;$('ovMsg')
   $('ovMsg').textContent=r.ok?'Added.':'Upload failed.';e.target.value='';await poll();renderOverlays()};
 const _show=show;show=function(t){_show(t);if(t==='layout')setTimeout(renderOverlays,300)};
 
-poll().then(()=>{if(S){$('kwCpu').style.display=S.hw.gpu_speech&&S.settings.use_gpu?'none':'block';updateLayoutMenus()}});loadSearches();setInterval(poll,1500);
+poll().then(()=>{if(S){$('kwCpu').style.display=S.hw.gpu_speech&&S.settings.use_gpu?'none':'block';updateLayoutMenus()}});loadSearches();loadComps();setInterval(poll,1500);
 </script></body></html>"""

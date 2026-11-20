@@ -8,3 +8,4 @@ clipper.new/
 clipper.old/
 __pycache__/
 *.pyc
+compilations/

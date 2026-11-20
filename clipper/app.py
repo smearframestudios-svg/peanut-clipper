@@ -40,7 +40,7 @@ class Runner:
     def running(self):
         return self.proc is not None and self.proc.poll() is None
 
-    QUEUEABLE = ("rerender", "export", "fromsearch")
+    QUEUEABLE = ("rerender", "export", "fromsearch", "compadd", "compexport")
 
     def start(self, kind, args, label, section_len=None):
         """True = started, "queued" = waits for the current job, False = refused (something else is running)."""
@@ -102,7 +102,7 @@ class Runner:
             self.label = {"upload": "Upload finished", "frame": "Frame ready - draw the boxes below",
                           "auto": "Auto run finished", "clips": "Twitch Shorts ready to review",
                           "hwtest": "Graphics card test finished", "rerender": "Short updated",
-                          "export": "Exported for Premiere", "syncfix": "Stream converted"}.get(self.kind, "Done")
+                          "export": "Exported for Premiere", "syncfix": "Stream converted"}.get(self.kind, self.label or "Done")
         self.finished_at = time.time()
         try:
             from .util import retry_pending_deletes
@@ -277,6 +277,24 @@ def make_handler():
                 if d and Path(d["source_file"]).is_file():
                     return self._file(Path(d["source_file"]))
                 return self._send(404, "not found")
+            if p == "/api/comps":
+                from .compile import CRASH_WORDS, all_comps
+                return self._send(200, {"comps": all_comps(), "crash_words": CRASH_WORDS})
+            if p == "/api/comp":
+                from urllib.parse import parse_qs
+                from .compile import info
+                try:
+                    return self._send(200, info(parse_qs(urlparse(self.path).query)["id"][0]))
+                except SystemExit as e:
+                    return self._send(404, {"error": str(e).replace("[!] ", "")})
+            if p.startswith("/comp/"):
+                from .compile import FOLDER
+                parts = p.split("/")
+                if len(parts) == 4:
+                    f = (FOLDER / Path(parts[2]).name / Path(parts[3]).name)
+                    if f.is_file():
+                        return self._file(f)
+                return self._send(404, "not found")
             if p == "/api/clip_info":
                 from urllib.parse import parse_qs
                 q = parse_qs(urlparse(self.path).query)
@@ -404,6 +422,12 @@ def make_handler():
                     label = "Exporting for Premiere..."
                 elif kind == "frame":
                     args, label = ["frame", body.get("url", ""), "--at", body.get("at") or "1:00:00"], "Grabbing a frame..."
+                elif kind == "compadd":
+                    args = ["compadd", str(body["comp"]), str(body["sid"]), str(int(body["idx"]))]
+                    label = "Adding the moment to the compilation..."
+                elif kind == "compexport":
+                    args = ["compexport", str(body["comp"])] + (["--premiere"] if body.get("premiere") else [])
+                    label = "Exporting the compilation for Premiere..." if body.get("premiere") else "Exporting the compilation..."
                 else:
                     return self._send(400, {"error": "unknown job"})
                 started = RUNNER.start(kind, args, label, section if kind in ("vod", "search") else (8 if kind == "frame" else None))
@@ -431,6 +455,15 @@ def make_handler():
             if p == "/api/cancel":
                 RUNNER.cancel()
                 return self._send(200, {"ok": True})
+            if p == "/api/comp":
+                from . import compile as comp
+                try:
+                    if body.get("action") == "new":
+                        c = comp.new(body.get("name"), body.get("goal", 480))
+                        return self._send(200, dict(c, length=0))
+                    return self._send(200, comp.edit(body["id"], body["action"], body) or {"ok": True})
+                except SystemExit as e:
+                    return self._send(400, {"error": str(e).replace("[!] ", "")})
             if p == "/api/sections":
                 library.save_sections(cfg, body["job"], body["id"], body.get("sections") or [])
                 return self._send(200, {"ok": True})

@@ -18,7 +18,7 @@ REPO = "smearframestudios-svg/peanut-clipper"
 BRANCH = "main"
 RAW = f"https://raw.githubusercontent.com/{REPO}/{BRANCH}"
 ZIP = f"https://github.com/{REPO}/archive/refs/heads/{BRANCH}.zip"
-KEEP = {".venv", "bin", "data", "work", "output", "exports", ".git"}
+KEEP = {".venv", "bin", "data", "work", "output", "exports", "compilations", ".git"}
 
 
 def _get(url, timeout=20):

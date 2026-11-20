@@ -1,5 +1,16 @@
 # What's new
 
+## 1.6.0
+- Compilations: a new tab for long videos made of many moments, like every GTA crash. Add moments from keyword searches on as many streams as you like.
+- Add to compilation: every keyword-search result has a "+ Add to compilation" button. Once a moment is in, the button says "Added (4th)" so you don't add it twice.
+- Crash words: one button fills the search box with GTA crash words (crash, wreck, my car, flip, oh no...).
+- Safe from auto-delete: each moment is copied out of its stream the moment you add it, so old streams can be cleaned up without breaking your compilation.
+- Goal bar: set a goal (8 minutes to start) and see how much more you need.
+- Arrange: drag the number to reorder, or use Up/Down, Shuffle or Oldest first. Nudge each moment's start and end by a second. Preview one, or Play all.
+- Between moments: Cut, Quick flash, or Crossfade. Moment numbers (#1, #2...) on screen can be turned on.
+- Export video (16:9): one finished 1920x1080, 60 fps video in your exports folder.
+- Export for Premiere: every moment as its own file plus a ready-made sequence. In Premiere: File, Import, pick the .xml - every moment is already cut in order, with extra seconds on each end to drag out.
+
 ## 1.5.0
 - Sections: in the trim editor, press C (or Ctrl+K) to cut the Short at the playhead, like the razor in Premiere. Click a part on the new Sections bar to pick how it looks.
 - Close-up on Peanut: make any part a full-screen close-up of Peanut's reaction or joke. Drag the pink box to choose exactly what fills the screen.

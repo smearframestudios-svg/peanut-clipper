@@ -1,0 +1,381 @@
+"""Compilations: long horizontal videos made of many moments (e.g. every GTA crash), from keyword-search matches
+across any number of streams.
+
+Each moment is copied out of its stream the moment it's added (1920x1080, 60 fps, with a few seconds of handles
+each side), so auto-delete can clean up old streams without breaking a compilation. Saved in compilations/<id>/.
+"""
+import datetime as dt
+import json
+import random
+import re
+import shutil
+import subprocess
+import uuid
+from pathlib import Path
+from urllib.parse import quote
+
+from .util import ROOT, load_json, probe, safe_unlink, save_json
+
+FOLDER = ROOT / "compilations"
+HANDLE = 5.0          # seconds kept each side of a moment, so it can be widened later (and in Premiere)
+LEAD, TAIL = 6, 6     # default seconds before / after the matched words
+FPS = 60
+TRANSITIONS = ("cut", "flash", "fade")
+FADE = 0.5            # crossfade length (seconds)
+CRASH_WORDS = "crash, crashed, wreck, my car, flip, flipped, oh no, bro, what the, hit me"
+
+
+def progress(pct, label):
+    print(f"@@ {int(pct)} {label}", flush=True)
+
+
+def _path(cid):
+    return FOLDER / re.sub(r"[^\w-]", "", cid) / "comp.json"
+
+
+def _safe(name):
+    return re.sub(r'[<>:"/\\|?*]+', "", name).strip()[:80] or "Compilation"
+
+
+def _length(c):
+    return sum(m["b"] - m["a"] for m in c["moments"])
+
+
+def _summary(c):
+    return {"id": c["id"], "name": c["name"], "count": len(c["moments"]), "length": round(_length(c), 1),
+            "goal": c.get("goal", 480), "created": c.get("created", "")}
+
+
+def all_comps():
+    out = []
+    for f in sorted(FOLDER.glob("*/comp.json")) if FOLDER.exists() else []:
+        c = load_json(f)
+        if c:
+            out.append(_summary(c))
+    return sorted(out, key=lambda x: x["created"], reverse=True)
+
+
+def get(cid):
+    c = load_json(_path(cid))
+    if not c:
+        raise SystemExit("[!] That compilation wasn't found.")
+    return c
+
+
+def info(cid):
+    c = get(cid)
+    return dict(c, length=round(_length(c), 1))
+
+
+def new(name, goal=480):
+    cid = dt.datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:4]
+    c = {"id": cid, "name": (name or "").strip()[:60] or "New compilation", "goal": int(goal or 480),
+         "transition": "cut", "numbers": False, "created": dt.datetime.now().isoformat(timespec="seconds"),
+         "moments": []}
+    _path(cid).parent.mkdir(parents=True, exist_ok=True)
+    save_json(_path(cid), c)
+    return c
+
+
+def edit(cid, action, body):
+    """Quick changes from the Compilations tab (no ffmpeg)."""
+    f = _path(cid)
+    c = get(cid)
+    ms = c["moments"]
+    find = lambda: next((m for m in ms if m["mid"] == body.get("mid")), None)  # noqa: E731
+    if action == "delete":
+        shutil.rmtree(f.parent, ignore_errors=True)
+        return None
+    if action == "settings":
+        if "name" in body:
+            c["name"] = str(body["name"]).strip()[:60] or c["name"]
+        if "goal" in body:
+            c["goal"] = max(30, min(4 * 3600, int(float(body["goal"]))))
+        if body.get("transition") in TRANSITIONS:
+            c["transition"] = body["transition"]
+        if "numbers" in body:
+            c["numbers"] = bool(body["numbers"])
+    elif action == "remove":
+        m = find()
+        if m:
+            ms.remove(m)
+            for k in ("file", "poster"):
+                safe_unlink(f.parent / m[k])
+    elif action == "trim":
+        m = find()
+        if m:
+            a = min(max(0.0, float(body.get("a", m["a"]))), m["dur"])
+            b = min(max(0.0, float(body.get("b", m["b"]))), m["dur"])
+            if b - a >= 1:
+                m["a"], m["b"] = round(a, 2), round(b, 2)
+    elif action == "order":
+        pos = {mid: i for i, mid in enumerate(body.get("order") or [])}
+        ms.sort(key=lambda m: pos.get(m["mid"], 10 ** 6))
+    elif action == "shuffle":
+        random.shuffle(ms)
+    elif action == "oldest":
+        ms.sort(key=lambda m: (m.get("stream_date", ""), m.get("stream_t", 0)))
+    save_json(f, c)
+    return dict(c, length=round(_length(c), 1))
+
+
+def _enc(cfg, quality=18):
+    if cfg.get("render_encoder") == "h264_nvenc":
+        return ["-c:v", "h264_nvenc", "-preset", "p5", "-profile:v", "high", "-rc", "vbr", "-cq", str(quality),
+                "-b:v", "0", "-bf", "2", "-b_ref_mode", "disabled"]
+    return ["-c:v", "libx264", "-preset", "fast", "-profile:v", "high", "-crf", str(quality), "-threads", "4"]
+
+
+NORM = (f"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,"
+        f"fps={FPS},setsar=1,format=yuv420p")
+AUDIO = ["-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2"]
+
+
+def add_moment(cfg, cid, sid, idx):
+    """Copy a keyword-search match into a compilation (one quick encode)."""
+    from .search import _segments_from_cache, snap
+    f = _path(cid)
+    c = get(cid)
+    out_dir = Path(cfg["paths"]["output_dir"]) / sid
+    data = load_json(out_dir / "search.json")
+    if not data:
+        raise SystemExit("[!] That search wasn't found.")
+    m = next((x for x in data["matches"] if x["i"] == int(idx)), None)
+    if not m:
+        raise SystemExit("[!] That match wasn't found.")
+    if any(x.get("sid") == sid and x.get("i") == m["i"] for x in c["moments"]):
+        print("  already in this compilation")
+        progress(100, "Already in the compilation")
+        return
+    src = Path(data["source_file"])
+    if not src.exists():
+        raise SystemExit("[!] The stream for this search was already deleted. Search again to re-download it.")
+    progress(10, "Copying the moment")
+    dur, _, _ = probe(src)
+    segs, words = _segments_from_cache(data["transcript_cache"])
+    start, end = snap(segs, max(0.0, m["t"] - LEAD), min(dur, m["t_end"] + TAIL))
+    end = min(end, start + 60)
+    ca, cb = max(0.0, start - HANDLE), min(dur, end + HANDLE)
+    mid = uuid.uuid4().hex[:8]
+    name = f"m_{mid}.mp4"
+    cmd = ["ffmpeg", "-v", "error", "-y", "-ss", f"{ca:.3f}", "-i", str(src), "-t", f"{cb - ca:.3f}",
+           "-map", "0:v:0", "-map", "0:a:0?", "-vf", NORM, "-af", "aresample=async=1"] + _enc(cfg) + \
+        ["-pix_fmt", "yuv420p", "-fps_mode", "cfr"] + AUDIO + ["-movflags", "+faststart", name]
+    subprocess.run(cmd, check=True, cwd=f.parent)
+    fdur, _, _ = probe(f.parent / name)
+    poster = f"m_{mid}.jpg"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{min(fdur, start - ca + 1):.2f}", "-i", name,
+                    "-frames:v", "1", "-vf", "scale=320:-2", poster], check=True, cwd=f.parent)
+    said = " ".join(w["w"].strip() for w in words if start <= w["s"] < end)
+    title = (m["text"].split('"')[1] if m["kind"] == "chat" and '"' in m["text"] else said)[:70].strip() or m["query"]
+    c = get(cid)                       # re-read: the page may have changed it while this ran
+    c["moments"].append({
+        "mid": mid, "file": name, "poster": poster, "title": title, "query": m["query"], "kind": m["kind"],
+        "sid": sid, "i": m["i"], "stream": data.get("source", ""), "stream_date": data.get("created", "")[:10],
+        "stream_t": round(data.get("offset", 0) + start, 2),
+        "a": round(start - ca, 2), "b": round(min(fdur, end - ca), 2), "dur": round(fdur, 2),
+        "added": dt.datetime.now().isoformat(timespec="seconds")})
+    save_json(f, c)
+    progress(100, f"Added to {c['name']} ({len(c['moments'])} moments, {_mmss(_length(c))})")
+
+
+def _mmss(t):
+    return f"{int(t // 60)}:{int(t % 60):02d}"
+
+
+# ------------------------------------------------------------------ number badge (no fonts needed)
+_DIGITS = {
+    "0": ["01110", "10001", "10011", "10101", "11001", "10001", "01110"],
+    "1": ["00100", "01100", "00100", "00100", "00100", "00100", "01110"],
+    "2": ["01110", "10001", "00001", "00010", "00100", "01000", "11111"],
+    "3": ["11110", "00001", "00001", "01110", "00001", "00001", "11110"],
+    "4": ["00010", "00110", "01010", "10010", "11111", "00010", "00010"],
+    "5": ["11111", "10000", "11110", "00001", "00001", "10001", "01110"],
+    "6": ["00110", "01000", "10000", "11110", "10001", "10001", "01110"],
+    "7": ["11111", "00001", "00010", "00100", "01000", "01000", "01000"],
+    "8": ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
+    "9": ["01110", "10001", "10001", "01111", "00001", "00010", "01100"],
+    "#": ["01010", "01010", "11111", "01010", "11111", "01010", "01010"],
+}
+
+
+def _badge(text, path, px=12):
+    """A small '#12' badge as raw RGBA (yellow on dark). Returns (width, height)."""
+    import numpy as np
+    pad, gap = 2 * px, px
+    cw = 5 * px
+    w = pad * 2 + len(text) * cw + (len(text) - 1) * gap
+    h = pad * 2 + 7 * px
+    img = np.zeros((h, w, 4), dtype=np.uint8)
+    img[:, :] = (17, 18, 20, 215)
+    for k, ch in enumerate(text):
+        rows = _DIGITS.get(ch)
+        if not rows:
+            continue
+        x0 = pad + k * (cw + gap)
+        for r, line in enumerate(rows):
+            for q, bit in enumerate(line):
+                if bit == "1":
+                    img[pad + r * px: pad + (r + 1) * px, x0 + q * px: x0 + (q + 1) * px] = (255, 201, 60, 255)
+    Path(path).write_bytes(img.tobytes())
+    return w, h
+
+
+# ------------------------------------------------------------------ export
+def _export_folder(cfg):
+    st = cfg["settings"]
+    folder = Path(st.get("export_folder") or (ROOT / "exports"))
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def _unique(path):
+    n = 2
+    p = path
+    while p.exists():
+        p = path.with_name(f"{path.stem} ({n}){path.suffix}")
+        n += 1
+    return p
+
+
+def export_video(cfg, cid):
+    """One 16:9 video of every moment in order, with the chosen transition."""
+    c = get(cid)
+    ms = c["moments"]
+    if not ms:
+        raise SystemExit("[!] This compilation has no moments yet.")
+    folder = _export_folder(cfg)
+    stamp = dt.datetime.now().strftime("%Y-%m-%d")
+    out = _unique(folder / f"{stamp} - {_safe(c['name'])}.mp4")
+    tmp = _path(cid).parent / "_export"
+    shutil.rmtree(tmp, ignore_errors=True)
+    tmp.mkdir()
+    try:
+        pieces = []
+        n = len(ms)
+        for k, m in enumerate(ms, 1):
+            progress(2 + 80 * (k - 1) / n, f"Preparing moment {k} of {n}")
+            src = _path(cid).parent / m["file"]
+            cmd = ["ffmpeg", "-v", "error", "-y", "-ss", f"{m['a']:.3f}", "-t", f"{m['b'] - m['a']:.3f}", "-i", str(src)]
+            vf = "[0:v]setpts=PTS-STARTPTS"
+            if c.get("transition") == "flash" and k > 1:
+                vf += ",fade=t=in:st=0:d=0.25:color=white"
+            if c.get("numbers"):
+                bw, bh = _badge(f"#{k}", tmp / f"b{k}.rgba")
+                cmd += ["-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{bw}x{bh}", "-i", str(tmp / f"b{k}.rgba")]
+                vf += f"[v0];[v0][1:v]overlay=60:60:enable='lt(t,2.5)':format=auto,format=yuv420p[v]"
+            else:
+                vf += ",format=yuv420p[v]"
+            p = tmp / f"p{k:03d}.mp4"
+            subprocess.run(cmd + ["-filter_complex", vf, "-map", "[v]", "-map", "0:a:0?", "-af", "asetpts=PTS-STARTPTS",
+                                  "-r", str(FPS)] + _enc(cfg) + ["-pix_fmt", "yuv420p", "-fps_mode", "cfr"] + AUDIO +
+                           [str(p)], check=True)
+            pieces.append(p)
+        progress(85, "Joining the moments")
+        if c.get("transition") == "fade" and len(pieces) > 1:
+            lens = [probe(p)[0] for p in pieces]
+            cmd = ["ffmpeg", "-v", "error", "-y"]
+            for p in pieces:
+                cmd += ["-i", str(p)]
+            fc, v, a, off = "", "0:v", "0:a", 0.0
+            for k in range(1, len(pieces)):
+                off += lens[k - 1] - FADE
+                fc += (f"[{v}][{k}:v]xfade=transition=fade:duration={FADE}:offset={off:.3f}[v{k}];"
+                       f"[{a}][{k}:a]acrossfade=d={FADE}[a{k}];")
+                v, a = f"v{k}", f"a{k}"
+            subprocess.run(cmd + ["-filter_complex", fc.rstrip(";"), "-map", f"[{v}]", "-map", f"[{a}]"] + _enc(cfg) +
+                           ["-pix_fmt", "yuv420p"] + AUDIO + ["-movflags", "+faststart", str(out)], check=True)
+        else:
+            lst = tmp / "list.txt"
+            lst.write_text("".join(f"file '{p.name}'\n" for p in pieces), encoding="utf-8")
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst.name, "-c", "copy",
+                            "-movflags", "+faststart", str(out)], check=True, cwd=tmp)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    print(f"  exported: {out}")
+    c = get(cid)
+    c["exported_to"] = str(out)
+    save_json(_path(cid), c)
+    progress(100, f"Compilation exported ({_mmss(probe(out)[0])})")
+    return out
+
+
+def _xml(c, files, folder):
+    """Final Cut Pro 7 XML (Premiere: File > Import) - one sequence, each moment on its own cut."""
+    def url(p):
+        s = Path(p).resolve().as_posix()
+        return "file://localhost/" + quote(s.lstrip("/"), safe="/:")
+
+    def rate():
+        return f"<rate><timebase>{FPS}</timebase><ntsc>FALSE</ntsc></rate>"
+
+    def esc(s):
+        return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+
+    vid, aud, t = [], [], 0
+    for k, (m, p) in enumerate(zip(c["moments"], files), 1):
+        fd = int(round(m["dur"] * FPS))
+        i0, i1 = int(round(m["a"] * FPS)), int(round(m["b"] * FPS))
+        s, e = t, t + (i1 - i0)
+        fileel = (f'<file id="file-{k}"><name>{esc(p.name)}</name><pathurl>{url(p)}</pathurl>{rate()}'
+                  f"<duration>{fd}</duration><media><video><samplecharacteristics>{rate()}<width>1920</width>"
+                  f"<height>1080</height></samplecharacteristics></video><audio><samplecharacteristics>"
+                  f"<depth>16</depth><samplerate>48000</samplerate></samplecharacteristics><channelcount>2</channelcount>"
+                  f"</audio></media></file>")
+        common = f"<name>{esc(p.stem)}</name><enabled>TRUE</enabled><duration>{fd}</duration>{rate()}" \
+                 f"<start>{s}</start><end>{e}</end><in>{i0}</in><out>{i1}</out>"
+        links = (f'<link><linkclipref>v{k}</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex>'
+                 f'<clipindex>{k}</clipindex></link><link><linkclipref>a{k}</linkclipref><mediatype>audio</mediatype>'
+                 f'<trackindex>1</trackindex><clipindex>{k}</clipindex></link>')
+        vid.append(f'<clipitem id="v{k}">{common}{fileel}{links}</clipitem>')
+        aud.append(f'<clipitem id="a{k}">{common}<file id="file-{k}"/><sourcetrack><mediatype>audio</mediatype>'
+                   f'<trackindex>1</trackindex></sourcetrack>{links}</clipitem>')
+        t = e
+    fmt = (f"<format><samplecharacteristics>{rate()}<width>1920</width><height>1080</height>"
+           f"<pixelaspectratio>square</pixelaspectratio><fielddominance>none</fielddominance></samplecharacteristics></format>")
+    return ('<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE xmeml>\n<xmeml version="4">'
+            f'<sequence id="sequence-1"><name>{esc(c["name"])}</name><duration>{t}</duration>{rate()}'
+            f"<media><video>{fmt}<track>{''.join(vid)}</track></video>"
+            f"<audio><numOutputChannels>2</numOutputChannels><track>{''.join(aud)}</track></audio></media>"
+            "</sequence></xmeml>\n")
+
+
+def export_premiere(cfg, cid):
+    """Every moment as its own file (with handles) + a sequence XML with each one on its own cut."""
+    c = get(cid)
+    if not c["moments"]:
+        raise SystemExit("[!] This compilation has no moments yet.")
+    folder = _unique(_export_folder(cfg) / f"{_safe(c['name'])} (Premiere)")
+    folder.mkdir(parents=True)
+    files = []
+    n = len(c["moments"])
+    for k, m in enumerate(c["moments"], 1):
+        progress(5 + 85 * (k - 1) / n, f"Copying moment {k} of {n}")
+        dest = folder / f"{k:02d} - {_safe(m['title'])[:50]}.mp4"
+        shutil.copy2(_path(cid).parent / m["file"], dest)
+        files.append(dest)
+    xml = folder / f"{_safe(c['name'])}.xml"
+    xml.write_text(_xml(c, files, folder), encoding="utf-8")
+    (folder / "How to open in Premiere.txt").write_text(
+        "In Premiere Pro: File > Import, pick the .xml file in this folder.\n"
+        "You get a sequence with every moment already cut in order. Each clip has a few extra seconds\n"
+        "on both ends, so you can drag the edges out if a moment needs more room.\n", encoding="utf-8")
+    print(f"  exported: {folder}")
+    c = get(cid)
+    c["premiere_to"] = str(folder)
+    save_json(_path(cid), c)
+    progress(100, "Exported for Premiere")
+    return folder
+
+
+def in_use(cid):
+    """Moments already in a compilation, as {(sid, i): position} so search results can say 'Added (4th)'."""
+    try:
+        c = get(cid)
+    except SystemExit:
+        return {}
+    return {f"{m['sid']}:{m['i']}": k for k, m in enumerate(c["moments"], 1)}
+
+
+if __name__ == "__main__":
+    print(json.dumps(all_comps(), indent=1))

@@ -16,7 +16,7 @@ owner's fan channel @BurntPeanutXD. The owner is not a programmer: they install 
 ## Never touched by updates (owner's data)
 `.venv/` packages, `bin/` (ffmpeg, ffprobe, deno), `data/` (settings.json, layout.json,
 overlays/, client_secret.json, token.json, hardware.json, processed.json, logs), `work/`
-(downloaded streams), `output/` (Shorts + clips.json), `exports/`. New settings go in
+(downloaded streams), `output/` (Shorts + clips.json), `exports/`, `compilations/` (each compilation's moments). New settings go in
 `DEFAULT_SETTINGS` in `clipper/util.py` so existing installs pick up defaults.
 
 ## Layout
@@ -24,8 +24,8 @@ overlays/, client_secret.json, token.json, hardware.json, processed.json, logs),
   `clipper/app_page.py` the whole UI (one HTML string).
 - `pipeline.py` find moments -> `score.py` (chat/audio/names), `transcribe.py` (faster-whisper),
   `render.py` (ffmpeg 1080x1920, banners, NVENC), `search.py` (keyword search over a full
-  cached transcript + chat, Shorts/exports from matches, saved keywords), `library.py` (review state, re-cut, Premiere export,
-  auto-delete), `upload.py` (YouTube API), `auto.py` (nightly scheduled task), `updater.py`, `setup_app.py`.
+  cached transcript + chat, Shorts/exports from matches, saved keywords), `library.py` (review state, re-cut, sections, screenshots, Premiere export,
+  auto-delete), `compile.py` (compilations: moments copied out of searches, 16:9 export, Premiere XML), `upload.py` (YouTube API), `auto.py` (nightly scheduled task), `updater.py`, `setup_app.py`.
 - Progress lines printed as `@@ <pct> <label>` drive the progress bar.
 
 ## Layouts

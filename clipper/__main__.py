@@ -84,6 +84,13 @@ def main(argv=None):
     fs.add_argument("idx", type=int)
     fs.add_argument("--export", action="store_true")
     fs.add_argument("--layout")
+    ca = sub.add_parser("compadd", help="copy a keyword-search match into a compilation")
+    ca.add_argument("comp")
+    ca.add_argument("sid")
+    ca.add_argument("idx", type=int)
+    ce = sub.add_parser("compexport", help="export a compilation (one 16:9 video, or a Premiere folder)")
+    ce.add_argument("comp")
+    ce.add_argument("--premiere", action="store_true")
     fr = sub.add_parser("frame", help="grab one frame from a stream for the Layout screen")
     fr.add_argument("source")
     fr.add_argument("--at", default="1:00:00")
@@ -156,6 +163,12 @@ def main(argv=None):
         st = cfg["settings"]
         clip_from_match(cfg, a.sid, a.idx, a.export, st.get("search_lead_sec", 10), st.get("search_tail_sec", 8),
                         a.layout)
+    elif a.cmd == "compadd":
+        from .compile import add_moment
+        add_moment(cfg, a.comp, a.sid, a.idx)
+    elif a.cmd == "compexport":
+        from .compile import export_premiere, export_video
+        (export_premiere if a.premiere else export_video)(cfg, a.comp)
     elif a.cmd == "frame":
         from .app import grab_frame
         grab_frame(cfg, a.source, parse_hms(a.at))
