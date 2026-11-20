@@ -1,5 +1,15 @@
 # What's new
 
+## 1.7.0
+- Record live: a new card at the top of Make Shorts records Peanut's stream while he's live - video and chat - so you don't have to wait hours for YouTube to process it.
+- Record now or wait: press Record now while he's live, or "Wait for him to go live" and it checks every 5 minutes and starts on its own.
+- From the very start: if you start late, it can still grab the stream from the beginning.
+- While it records: see how long it's been, the size, chat messages and free disk space. You can keep using the rest of the app, and it keeps recording even if you close Peanut Clipper.
+- When he ends: the recording is saved like any downloaded stream. Make Shorts from it, keyword search it, or add moments to a compilation - no extra download.
+- Make Shorts as soon as he ends: turn it on and the app starts finding moments the minute the stream is over.
+- Nightly auto mode: can also check if he's live and start recording (off until you tick the box).
+- Internet hiccup: if the connection drops while he's still live, it picks the recording back up by itself.
+
 ## 1.6.0
 - Compilations: a new tab for long videos made of many moments, like every GTA crash. Add moments from keyword searches on as many streams as you like.
 - Add to compilation: every keyword-search result has a "+ Add to compilation" button. Once a moment is in, the button says "Added (4th)" so you don't add it twice.

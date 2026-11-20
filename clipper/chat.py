@@ -23,7 +23,8 @@ def _parse_youtube_line(obj):
     rep = obj.get("replayChatItemAction")
     if not rep:
         return None
-    t = float(rep.get("videoOffsetTimeMsec", 0)) / 1000.0
+    # replay files keep the time inside replayChatItemAction; yt-dlp's live recordings keep it next to it
+    t = float(rep.get("videoOffsetTimeMsec", obj.get("videoOffsetTimeMsec", 0))) / 1000.0
     for act in rep.get("actions", []):
         item = act.get("addChatItemAction", {}).get("item", {})
         for kind in ("liveChatTextMessageRenderer", "liveChatPaidMessageRenderer"):

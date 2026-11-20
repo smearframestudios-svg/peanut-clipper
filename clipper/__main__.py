@@ -84,6 +84,12 @@ def main(argv=None):
     fs.add_argument("idx", type=int)
     fs.add_argument("--export", action="store_true")
     fs.add_argument("--layout")
+    lv = sub.add_parser("live", help="record a stream while it's live (video + chat)")
+    lv.add_argument("url", nargs="?")
+    lv.add_argument("--from-start", action="store_true", help="record from the very start of the stream")
+    lv.add_argument("--wait", action="store_true", help="wait for him to go live (checks every 5 minutes)")
+    lv.add_argument("--then-make", action="store_true", help="make Shorts as soon as the stream ends")
+    lv.add_argument("--recover", action="store_true", help="save a recording that stopped unexpectedly")
     ca = sub.add_parser("compadd", help="copy a keyword-search match into a compilation")
     ca.add_argument("comp")
     ca.add_argument("sid")
@@ -163,6 +169,12 @@ def main(argv=None):
         st = cfg["settings"]
         clip_from_match(cfg, a.sid, a.idx, a.export, st.get("search_lead_sec", 10), st.get("search_tail_sec", 8),
                         a.layout)
+    elif a.cmd == "live":
+        from . import live
+        if a.recover:
+            live.recover(cfg)
+        else:
+            live.record(cfg, a.url or cfg["settings"]["channel_url"], a.from_start, a.wait, a.then_make)
     elif a.cmd == "compadd":
         from .compile import add_moment
         add_moment(cfg, a.comp, a.sid, a.idx)

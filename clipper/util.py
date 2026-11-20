@@ -13,6 +13,9 @@ DATA = ROOT / "data"          # settings, layout, tokens, state
 
 DEFAULT_SETTINGS = {
     "channel_url": "https://www.youtube.com/@TheBurntPeanut/streams",
+    "live_from_start": True,
+    "live_then_make": True,
+    "live_in_auto": False,
     "auto_enabled": False,
     "auto_time": "04:30",
     "auto_twitch_clips": False,

@@ -41,6 +41,14 @@ def run_auto(cfg):
     if free_gb < MIN_FREE_GB:
         _log(f"skipped: only {free_gb:.0f} GB free (need {MIN_FREE_GB} GB for a full stream)")
         return
+    if st.get("live_in_auto"):
+        from . import live
+        if not live.state().get("alive"):
+            status, vid, title, _ = live.check(st["channel_url"])
+            if status == "is_live":
+                live.start_background(st["channel_url"], from_start=st.get("live_from_start", True),
+                                      then_make=st.get("live_then_make", True))
+                _log(f"he's live - started recording: {title}")
     done = set(load_json(DATA / "processed.json", []) or [])
     made = 0
     try:

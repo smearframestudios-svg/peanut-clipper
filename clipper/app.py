@@ -277,6 +277,9 @@ def make_handler():
                 if d and Path(d["source_file"]).is_file():
                     return self._file(Path(d["source_file"]))
                 return self._send(404, "not found")
+            if p == "/api/live":
+                from . import live
+                return self._send(200, live.state())
             if p == "/api/comps":
                 from .compile import CRASH_WORDS, all_comps
                 return self._send(200, {"comps": all_comps(), "crash_words": CRASH_WORDS})
@@ -455,6 +458,27 @@ def make_handler():
             if p == "/api/cancel":
                 RUNNER.cancel()
                 return self._send(200, {"ok": True})
+            if p == "/api/live":
+                from . import live
+                act = body.get("action")
+                if act == "start":
+                    url = (body.get("url") or "").strip() or cfg["settings"]["channel_url"]
+                    ok, msg = live.start_background(url, bool(body.get("from_start", True)), bool(body.get("wait")),
+                                                    bool(body.get("then_make", True)))
+                    return self._send(200 if ok else 409, {"ok": ok, "error": msg})
+                if act == "stop":
+                    live.stop()
+                    return self._send(200, {"ok": True})
+                if act == "recover":
+                    import subprocess as sp
+                    sp.Popen([sys.executable, "-m", "clipper", "live", "--recover"], cwd=ROOT,
+                             creationflags=0x08000000 if os.name == "nt" else 0)
+                    return self._send(200, {"ok": True})
+                if act == "clear":
+                    from .util import save_json as _sj
+                    _sj(live.STATE, {"state": "idle"})
+                    return self._send(200, {"ok": True})
+                return self._send(400, {"error": "unknown action"})
             if p == "/api/comp":
                 from . import compile as comp
                 try:
@@ -486,6 +510,10 @@ def make_handler():
                 return self._send(200, {"ok": True})
             if p == "/api/decide":
                 library.decide(cfg, body["job"], body["id"], body["status"], body.get("title"))
+                return self._send(200, {"ok": True})
+            if p == "/api/setting":          # one quick setting (e.g. a checkbox), no side effects
+                allowed = {"live_from_start", "live_then_make", "live_in_auto"}
+                save_settings({k: v for k, v in body.items() if k in allowed})
                 return self._send(200, {"ok": True})
             if p == "/api/settings":
                 from .auto import install_task, remove_task

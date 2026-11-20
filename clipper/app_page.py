@@ -125,6 +125,13 @@ a{color:var(--blue)}
 .mo .grp .k{font-size:12px;color:var(--mute);margin-right:2px}
 .cmp-player video{width:100%;max-height:48vh;background:#000;border-radius:10px;display:block}
 .btn.added{color:#9ee6bd;border-color:#2fb36d}
+.live-st{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}
+.live-st div{background:var(--panel2);border-radius:10px;padding:10px 12px}.live-st span{font-size:12px;color:var(--mute)}
+.live-st b{display:block;font:700 18px Consolas,monospace;color:var(--acc)}
+.rec-dot{width:12px;height:12px;border-radius:50%;background:#e5484d;display:inline-block;animation:recp 1.4s infinite}
+@keyframes recp{50%{opacity:.35}}@media(prefers-reduced-motion:reduce){.rec-dot{animation:none}}
+.btn.rec{background:#e5484d;border-color:#e5484d;color:#fff}
+@media(max-width:700px){.live-st{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .ed-foot{display:flex;align-items:center;gap:12px;margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
 .ov{display:flex;align-items:center;gap:12px;background:var(--panel2);border-radius:10px;padding:10px;margin-bottom:8px}
 .ov img{width:54px;height:96px;object-fit:contain;background:repeating-conic-gradient(#333 0 25%,#222 0 50%) 0 0/12px 12px;border-radius:6px}
@@ -157,6 +164,31 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
   <h2>Make Shorts</h2><p class="sub">Paste a finished stream and the app finds the best moments, cuts them into Shorts, and puts them in Review.</p>
   <div class="row" style="margin:-8px 0 16px"><span class="mute">Layout for new Shorts</span><select id="mkLayout" style="min-width:220px"></select>
     <button class="link" onclick="show('layout')">edit layouts</button></div>
+  <div class="card" id="liveCard">
+    <div id="liveIdle">
+      <div class="row"><h3 style="margin:0">Record live</h3><span class="tiny mute">Record Peanut's stream while he's live - no waiting for YouTube.</span></div>
+      <div class="row" style="margin-top:10px"><input class="big" type="text" id="liveUrl" placeholder="Leave empty to use his channel (from Settings) - or paste a live link"></div>
+      <div class="row tiny" style="margin-top:10px;gap:18px">
+        <label class="toggle"><input type="checkbox" id="liveFromStart"> Record from the very start of the stream</label>
+        <label class="toggle"><input type="checkbox" id="liveThenMake"> Make Shorts as soon as he ends</label>
+        <label class="toggle"><input type="checkbox" id="liveInAuto"> Also check in the nightly auto mode</label></div>
+      <div class="row" style="margin-top:12px"><button class="btn main" id="liveNow">Record now</button><button class="btn" id="liveWait">Wait for him to go live</button>
+        <span class="tiny mute" id="liveMsg"></span></div>
+    </div>
+    <div id="liveRec" style="display:none">
+      <div class="row"><span class="rec-dot" id="liveDot"></span><h3 style="margin:0" id="liveHead">Recording live</h3><span class="mute" id="liveTitle"></span>
+        <button class="btn rec" id="liveStop" style="margin-left:auto">Stop recording</button></div>
+      <div class="live-st" id="liveStats"><div><span>Recorded</span><b id="lvTime">0:00:00</b></div><div><span>Size</span><b id="lvSize">0 MB</b></div>
+        <div><span>Chat messages</span><b id="lvChat">0</b></div><div><span>Free disk</span><b id="lvFree">-</b></div></div>
+      <div class="tiny mute" style="margin-top:10px" id="liveNote">Keep the PC on and online. You can use the rest of the app while it records.</div>
+    </div>
+    <div id="liveDone" style="display:none">
+      <div class="row"><h3 style="margin:0" id="lvDoneHead">Recording saved</h3><span class="mute" id="lvDoneInfo"></span></div>
+      <div class="row" style="margin-top:10px"><button class="btn main" id="lvMake">Make Shorts from it</button><button class="btn" id="lvSearch">Keyword search it</button>
+        <button class="btn" id="lvAgain">Record another</button><span class="tiny mute" id="lvMakeNote"></span></div>
+      <div id="lvMakeBar" style="display:none;margin-top:10px"><div class="bar"><i id="lvMakeFill"></i></div></div>
+    </div>
+  </div>
   <div class="card">
     <h3>From a stream</h3>
     <div class="row">
@@ -538,6 +570,7 @@ $('vUpdate').onclick=async()=>{const r=await api('/api/update',{});
   if(r.after_job){toast('<b>Update in line:</b> it updates by itself when the current job finishes.');poll();return}
   cover('Updating Peanut Clipper...','Downloading...');reloadWhenBack=true};
 $('quit').onclick=async()=>{if(S&&S.job&&S.job.running&&!confirm('A job is still running. Quit anyway? It will be stopped.'))return;
+  if(LV&&LV.alive&&!confirm('A live recording is running. It keeps recording in the background after you quit - open Peanut Clipper again to see it or stop it. Quit?'))return;
   quitting=true;await fetch('/api/quit',{method:'POST',body:'{}'}).catch(()=>{});
   cover('Peanut Clipper is closed','You can close this tab. Open it again from the Desktop icon.');document.querySelector('.spin').style.display='none'};
 
@@ -577,6 +610,44 @@ async function openSearch(sid,keepPlayer){
     const r=await api('/api/run',{kind:'fromsearch',sid:KW.sid,idx:m.i,export:b.dataset.a==='export',layout:$('mkLayout').value});lastJobKey='running';if(r.queued)toast('<b>In line:</b> this match is cut when the current job finishes.');poll()});
   markAdded();
 }
+
+// ---------- record live ----------
+let LV={};
+const gb=b=>b>=1e9?(b/1e9).toFixed(1)+' GB':Math.round(b/1e6)+' MB';
+async function liveTick(){let st;try{st=await api('/api/live')}catch(e){return}LV=st;const s=st.state||'idle';
+  const rec=['checking','waiting','recording','saving'].includes(s);const done=['done','making'].includes(s)&&st.file;
+  $('liveIdle').style.display=(!rec&&!done&&s!=='crashed')?'':'none';$('liveRec').style.display=(rec||s==='crashed')?'':'none';$('liveDone').style.display=done?'':'none';
+  if(!rec&&!done&&s!=='crashed'){$('liveMsg').textContent=st.message||(st.last_check?'Last checked '+new Date(st.last_check*1000).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):'')}
+  if(rec||s==='crashed'){const head={checking:"Checking if he's live...",waiting:'Waiting for him to go live',recording:'Recording live',saving:'Saving the recording...',crashed:'Recording stopped unexpectedly'}[s];
+    $('liveHead').textContent=head;$('liveDot').style.display=s==='recording'?'':'none';$('liveTitle').textContent=st.title?'"'+st.title+'"':'';
+    $('liveStats').style.display=(s==='recording'||s==='saving'||(s==='crashed'&&st.bytes))?'':'none';
+    $('lvTime').textContent=T(st.seconds||0);$('lvSize').textContent=gb(st.bytes||0);$('lvChat').textContent=(st.chat||0).toLocaleString();
+    $('lvFree').textContent=st.free_gb!=null?st.free_gb+' GB':'-';$('lvFree').style.color=st.free_gb!=null&&st.free_gb<30?'var(--no)':'';
+    $('liveStop').style.display=s==='saving'?'none':'';
+    $('liveStop').textContent=s==='crashed'?(st.bytes?'Save what was recorded':'OK'):s==='waiting'||s==='checking'?'Stop waiting':'Stop recording';
+    $('liveNote').textContent=s==='waiting'?`Checking every 5 min - not live yet${st.last_check?' (last checked '+new Date(st.last_check*1000).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+')':''}. Keep the PC on.`
+      :s==='crashed'?'The recorder stopped (was the PC asleep or turned off?). What was recorded so far can still be saved.'
+      :s==='saving'?'Putting the recording together - this takes a minute or two.':'Keep the PC on and online. You can use the rest of the app while it records.'}
+  if(done){$('lvDoneHead').textContent='Recording saved';
+    $('lvDoneInfo').textContent=`${T(st.seconds||0)} - ${gb(st.bytes||0)} - ${(st.chat||0).toLocaleString()} chat messages`;
+    const making=s==='making';$('lvMakeBar').style.display=making?'':'none';if(making)$('lvMakeFill').style.width=(st.made_pct||0)+'%';
+    $('lvMakeNote').textContent=making?`"Make Shorts as soon as he ends" was on, so finding moments already started: ${st.made_label||''} (${st.made_pct||0}%)`
+      :st.made===true?'Done - new Shorts are waiting in Review.':st.made===false?(st.made_label||''):st.message||'';
+    $('lvMake').disabled=making}}
+async function liveStart(wait){const r=await api('/api/live',{action:'start',url:$('liveUrl').value.trim(),wait,from_start:$('liveFromStart').checked,then_make:$('liveThenMake').checked}).catch(()=>null);
+  if(r&&r.ok)liveTick()}
+$('liveNow').onclick=()=>liveStart(false);$('liveWait').onclick=()=>liveStart(true);
+$('liveStop').onclick=async()=>{const s=LV.state;
+  if(s==='crashed'){await api('/api/live',{action:LV.bytes?'recover':'clear'});setTimeout(liveTick,800);return}
+  if(s==='recording'&&!confirm('Stop recording? What was recorded so far is saved.'))return;
+  await api('/api/live',{action:'stop'});setTimeout(liveTick,800)};
+$('lvMake').onclick=()=>{$('url').value=LV.url||'';$('part').checked=false;$('partBox').style.display='none';$('go').click()};
+$('lvSearch').onclick=()=>{$('kwUrl').value=LV.url||'';$('kwWords').focus();$('kwWords').scrollIntoView({behavior:'smooth',block:'center'})};
+$('lvAgain').onclick=async()=>{await api('/api/live',{action:'clear'});liveTick()};
+[['liveFromStart','live_from_start'],['liveThenMake','live_then_make'],['liveInAuto','live_in_auto']].forEach(([id,k])=>
+  $(id).onchange=()=>{S.settings[k]=$(id).checked;api('/api/setting',{[k]:$(id).checked})});
+function liveFill(){if(!S||!S.settings)return;$('liveFromStart').checked=S.settings.live_from_start!==false;
+  $('liveThenMake').checked=S.settings.live_then_make!==false;$('liveInAuto').checked=!!S.settings.live_in_auto}
 
 // ---------- compilations ----------
 let CMP=null,CMPS=[],cmpCur=null,cmpStopAt=null,cmpQueue=null,crashWords='';
@@ -1120,5 +1191,5 @@ $('ovFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;$('ovMsg')
   $('ovMsg').textContent=r.ok?'Added.':'Upload failed.';e.target.value='';await poll();renderOverlays()};
 const _show=show;show=function(t){_show(t);if(t==='layout')setTimeout(renderOverlays,300)};
 
-poll().then(()=>{if(S){$('kwCpu').style.display=S.hw.gpu_speech&&S.settings.use_gpu?'none':'block';updateLayoutMenus()}});loadSearches();loadComps();setInterval(poll,1500);
+poll().then(()=>{if(S){$('kwCpu').style.display=S.hw.gpu_speech&&S.settings.use_gpu?'none':'block';updateLayoutMenus();liveFill()}});loadSearches();loadComps();setInterval(poll,1500);liveTick();setInterval(()=>{if(!document.hidden)liveTick()},2000);
 </script></body></html>"""
