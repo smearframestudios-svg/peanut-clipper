@@ -9,7 +9,9 @@ header{display:flex;align-items:center;gap:22px;padding:0 28px;height:64px;borde
 .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;letter-spacing:.2px}
 .brand .dot{width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#e8b56a,#a8662a);box-shadow:0 0 0 2px #0c0d0f,0 0 0 3px #a8662a55}
 nav{display:flex;gap:4px;height:100%}
-nav button{background:none;border:0;color:var(--mute);font:inherit;font-weight:600;padding:0 14px;cursor:pointer;border-bottom:3px solid transparent;height:100%}
+nav button{background:none;border:0;color:var(--mute);font:inherit;font-weight:600;padding:0 14px;white-space:nowrap;cursor:pointer;border-bottom:3px solid transparent;height:100%}
+@media(max-width:1500px){header{gap:12px;padding:0 16px}nav{gap:0}nav button{padding:0 9px;font-size:14px}}
+@media(max-width:1250px){nav{overflow-x:auto;scrollbar-width:none}}
 nav button.on{color:var(--text);border-bottom-color:var(--acc)}
 .badge{display:inline-block;min-width:20px;padding:0 6px;margin-left:6px;border-radius:99px;background:var(--acc);color:#111;font-size:12px;font-weight:800;text-align:center}
 .badge:empty{display:none}
@@ -68,7 +70,7 @@ canvas#prev{width:270px;height:480px;border-radius:12px;border:1px solid var(--l
 .seg button{background:var(--panel2);color:var(--mute);border:0;padding:9px 14px;font:inherit;font-weight:600;cursor:pointer;border-right:1px solid var(--line)}
 .seg button:last-child{border-right:0}.seg button.on{background:var(--acc);color:#111}
 .stage{min-height:200px;background:#0c0d0f;border-radius:8px}.nofr{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--mute)}
-.toast{position:fixed;right:24px;bottom:24px;background:var(--panel2);border:1px solid var(--line);border-left:4px solid var(--acc);padding:14px 18px;border-radius:10px;display:none;max-width:420px;z-index:9}
+.toast{position:fixed;right:24px;bottom:24px;background:var(--panel2);border:1px solid var(--line);border-left:4px solid var(--acc);padding:14px 18px;border-radius:10px;display:none;max-width:420px;z-index:40}
 a{color:var(--blue)}
 .clip .act .btn.ed{flex:0 0 auto;background:var(--panel2)}
 .modal{position:fixed;inset:0;background:#000c;display:none;z-index:20;align-items:center;justify-content:center;padding:24px}
@@ -385,7 +387,9 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
   </div>
   <div class="card"><h3>Premiere export</h3>
     <div class="set">
-      <label class="k">Export folder</label><input type="text" class="big" id="s_export_folder" placeholder="e.g. C:\Users\Batman\Freelance\Smear Frame Studios\Frame Drip X\BurntPeanut XD\RAW CLIPS">
+      <label class="k">Export folder</label><div class="row" style="flex-wrap:nowrap"><input type="text" class="big" id="s_export_folder" style="flex:1" placeholder="e.g. C:\Users\Batman\Freelance\Smear Frame Studios\Frame Drip X\BurntPeanut XD\RAW CLIPS"><button class="btn" type="button" onclick="pickFolder('export_folder')">Browse...</button><button class="btn" type="button" onclick="openSetFolder('export_folder')">Open</button></div>
+      <label class="k">Screenshot folder</label><div><div class="row" style="flex-wrap:nowrap"><input type="text" class="big" id="s_screenshot_folder" style="flex:1" placeholder="Empty = the Export folder\Screenshots"><button class="btn" type="button" onclick="pickFolder('screenshot_folder')">Browse...</button><button class="btn" type="button" onclick="openSetFolder('screenshot_folder')">Open</button></div>
+        <div class="tiny mute" style="margin-top:4px">Leave empty to keep using the Export folder\Screenshots. Browse opens the normal Windows folder picker.</div></div>
       <label class="k">Extra seconds each side</label><input type="number" min="0" max="30" class="small" id="s_export_handles_sec">
       <label class="k">Also copy the vertical Short</label><label class="toggle"><input type="checkbox" id="s_export_vertical_too"> Put the app's vertical version next to the raw clip</label>
       <label class="k">Frame rate of the app's Shorts</label><select id="s_output_fps"><option value="60">60 fps</option><option value="30">30 fps</option></select>
@@ -777,9 +781,22 @@ function drawHistory(){const q=$('hSearch').value.trim().toLowerCase();
     const v=prompt('Screenshot the stream at what time? (like 1:42:15)',tcode(h.stream_start));if(v==null)return;const at=fromCode(v);
     if(at==null){toast('That time didn\'t look right - use something like 1:42:15.');return}
     try{const r=await api('/api/history_shot',{key:h.key,at});
-      toast(`<b>Screenshot saved:</b> ${esc(r.name)}<br><span class="tiny mute">${esc(r.folder)}</span><br><button class="link" onclick="api('/api/open_folder',{path:${esc(JSON.stringify(r.folder)).replace(/'/g,'&#39;')}})">Open the folder</button>`)}catch(e){}})}
+      toast(`<b>Screenshot saved:</b> ${esc(r.name)}<br><span class="tiny mute">${esc(r.folder)}</span><br><button class="link" onclick="api('/api/open_folder',{path:${esc(JSON.stringify(r.folder)).replace(/'/g,'&#39;')}})">Open the folder</button> &nbsp; <button class="link" onclick="pickFolder('screenshot_folder')">Change folder</button>`)}catch(e){}})}
 $('hSearch').oninput=drawHistory;
 document.querySelectorAll('#hFilter button').forEach(b=>b.onclick=()=>{hFilter=b.dataset.v;document.querySelectorAll('#hFilter button').forEach(x=>x.classList.toggle('on',x===b));drawHistory()});
+
+// ---------- folder pickers (Settings + "Change folder" on screenshot messages) ----------
+const shotFolder=()=>S.settings.screenshot_folder||((S.settings.export_folder||S.default_export)+'\\Screenshots');
+async function pickFolder(key){const start=key==='screenshot_folder'?shotFolder():(S.settings.export_folder||S.default_export);
+  const title=key==='screenshot_folder'?'Where should screenshots go?':'Where should exports go?';
+  toast('Pick a folder in the window that just opened (it may be behind this one).');
+  const r=await api('/api/pick_folder',{start,title}).catch(()=>null);
+  if(!r||!r.path){toast('No folder picked - nothing changed.');return}
+  S.settings[key]=r.path;const inp=$('s_'+key);if(inp)inp.value=r.path;await api('/api/setting',{[key]:r.path});
+  toast(`<b>${key==='screenshot_folder'?'Screenshots':'Exports'} now go to:</b><br><span class="tiny">${esc(r.path)}</span>`);
+  if($('expFolder'))$('expFolder').textContent=S.settings.export_folder||S.default_export}
+function openSetFolder(key){const v=($('s_'+key)&&$('s_'+key).value.trim())||(key==='screenshot_folder'?shotFolder():(S.settings.export_folder||S.default_export));
+  api('/api/open_folder',{path:v})}
 
 // ---------- record live ----------
 let LV={};
@@ -957,7 +974,7 @@ $('goExportAll').onclick=async()=>{const r=await api('/api/run',{kind:'export'})
 $('goUpload').onclick=async()=>{await api('/api/run',{kind:'upload'});lastJobKey='running';show('make');poll()};
 
 // ---------- settings ----------
-const keys=['saved_keywords','saved_keywords_max','search_lead_sec','search_tail_sec','keep_source_days','edit_window_min','export_folder','export_handles_sec','export_vertical_too','output_fps','auto_enabled','auto_time','channel_url','auto_twitch_clips','shorts_per_stream','captions','delete_source','delete_rejected','delete_uploaded','use_gpu','twitch_client_id','twitch_client_secret','schedule_times'];
+const keys=['saved_keywords','saved_keywords_max','search_lead_sec','search_tail_sec','keep_source_days','edit_window_min','export_folder','screenshot_folder','export_handles_sec','export_vertical_too','output_fps','auto_enabled','auto_time','channel_url','auto_twitch_clips','shorts_per_stream','captions','delete_source','delete_rejected','delete_uploaded','use_gpu','twitch_client_id','twitch_client_secret','schedule_times'];
 async function fillSettings(){
   if(!S)await poll();const st=S.settings;
   for(const k of keys){const el=$('s_'+k);if(!el)continue;
@@ -1272,7 +1289,7 @@ $('edSrc').addEventListener('play',()=>{if(!liveRAF)liveRAF=requestAnimationFram
 // ---------- screenshot of the frame at the playhead ----------
 async function shot(vertical){if(!E)return;$('edSrc').pause();const at=+(($('edSrc').currentTime||0)+E.off).toFixed(3);
   try{const r=await api('/api/snapshot',{job:E.job,id:E.id,at,vertical,layout:$('edLayout').value,framing:frSend(),sections:secSend()});
-    toast(`<b>Screenshot saved:</b> ${esc(r.name)}<br><span class="tiny mute">${esc(r.folder)}</span><br><button class="link" onclick="api('/api/open_folder',{path:${esc(JSON.stringify(r.folder)).replace(/'/g,'&#39;')}})">Open the folder</button>`)}catch(e){}}
+    toast(`<b>Screenshot saved:</b> ${esc(r.name)}<br><span class="tiny mute">${esc(r.folder)}</span><br><button class="link" onclick="api('/api/open_folder',{path:${esc(JSON.stringify(r.folder)).replace(/'/g,'&#39;')}})">Open the folder</button> &nbsp; <button class="link" onclick="pickFolder('screenshot_folder')">Change folder</button>`)}catch(e){}}
 $('shotShort').onclick=()=>shot(true);$('shotStream').onclick=()=>shot(false);
 
 // ---------- framing for one Short (trim editor) ----------

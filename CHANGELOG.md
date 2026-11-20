@@ -1,5 +1,12 @@
 # What's new
 
+## 1.9.1
+- Screenshot folder: pick where screenshots go in Settings (Premiere export section). Leave it empty to keep using your Export folder\Screenshots.
+- Browse buttons: the Export folder and the Screenshot folder each have Browse... (the normal Windows folder picker) and Open.
+- Change folder: every "Screenshot saved" message now has a Change folder link next to Open the folder.
+- Fix: messages shown while the trim editor is open (like "Screenshot saved") can be clicked again - they used to sit behind the editor.
+- The tab names stay on one line on smaller windows.
+
 ## 1.9.0
 - Collections: a new tab for saving Shorts for a montage later. Press "+ Collection" on any Short in Review and pick a collection (or make a new one).
 - Stays in Review: adding a Short to a collection doesn't approve or reject it - you can still use it as a Short too. The button then says which collection it's in.

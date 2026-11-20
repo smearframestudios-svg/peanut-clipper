@@ -182,6 +182,21 @@ def app_state():
 
 
 # ---------------------------------------------------------------- web server
+def pick_folder(start="", title="Pick a folder"):
+    """Windows folder picker (PowerShell, so it works without tkinter). Returns '' if cancelled."""
+    if os.name != "nt":
+        return ""
+    ps = ("Add-Type -AssemblyName System.Windows.Forms;"
+          "$o=New-Object System.Windows.Forms.Form -Property @{TopMost=$true;ShowInTaskbar=$false};"
+          "$d=New-Object System.Windows.Forms.FolderBrowserDialog;$d.Description=$env:PC_TITLE;$d.ShowNewFolderButton=$true;"
+          "if($env:PC_START -and (Test-Path $env:PC_START)){$d.SelectedPath=$env:PC_START};"
+          "if($d.ShowDialog($o) -eq 'OK'){[Console]::OutputEncoding=[Text.Encoding]::UTF8;$d.SelectedPath}")
+    env = dict(os.environ, PC_START=start, PC_TITLE=title)
+    r = subprocess.run(["powershell", "-NoProfile", "-STA", "-Command", ps], capture_output=True, text=True,
+                       encoding="utf-8", errors="ignore", env=env, creationflags=0x08000000)
+    return r.stdout.strip().splitlines()[-1] if r.stdout.strip() else ""
+
+
 def make_handler():
     class H(BaseHTTPRequestHandler):
         def log_message(self, *a):
@@ -517,8 +532,12 @@ def make_handler():
                 except Exception as e:  # noqa: BLE001
                     return self._send(500, {"error": f"Couldn't save the screenshot: {e}"})
                 return self._send(200, {"ok": True, "file": str(out), "folder": str(out.parent), "name": out.name})
+            if p == "/api/pick_folder":       # the normal Windows folder picker, on top of the browser
+                return self._send(200, {"path": pick_folder(body.get("start") or "", body.get("title") or "Pick a folder")})
             if p == "/api/open_folder":
                 f = Path(body.get("path", ""))
+                if f.is_absolute() and not f.exists() and f.parent.exists():
+                    f.mkdir(exist_ok=True)        # e.g. the Screenshots folder before the first screenshot
                 if f.is_dir() and os.name == "nt":
                     os.startfile(str(f))  # noqa: S606
                 return self._send(200, {"ok": True})
@@ -529,7 +548,7 @@ def make_handler():
                 library.decide(cfg, body["job"], body["id"], body["status"], body.get("title"))
                 return self._send(200, {"ok": True})
             if p == "/api/setting":          # one quick setting (e.g. a checkbox), no side effects
-                allowed = {"live_from_start", "live_then_make", "live_in_auto"}
+                allowed = {"live_from_start", "live_then_make", "live_in_auto", "export_folder", "screenshot_folder"}
                 save_settings({k: v for k, v in body.items() if k in allowed})
                 return self._send(200, {"ok": True})
             if p == "/api/settings":

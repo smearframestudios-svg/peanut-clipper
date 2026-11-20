@@ -104,8 +104,7 @@ def history_shot(cfg, key, at):
         raise SystemExit("[!] The stream was already deleted from this PC. Use \"Open stream there\" and pause it on YouTube.")
     dur, sw, sh = probe(src)
     t = min(max(0.0, at - float(h.get("file_shift") or 0)), max(0.0, dur - 0.05))
-    folder = Path(cfg["settings"].get("export_folder") or (ROOT / "exports")) / "Screenshots"
-    folder.mkdir(parents=True, exist_ok=True)
+    folder = screenshot_folder(cfg)
     a = int(at)
     base = f"{_safe(h['title'])} - stream {a // 3600}h{a % 3600 // 60:02d}m{a % 60:02d}s"
     out = folder / f"{base}.png"
@@ -390,8 +389,7 @@ def snapshot(cfg, job, cid, at, vertical=True, layout=None, framing=None, sectio
     dur, sw, sh = probe(src)
     secs = clean_sections(c.get("sections", []) if sections is None else sections)
     sec = next((x for x in secs if x["start"] <= at < x["end"]), None)
-    folder = Path(st.get("export_folder") or (ROOT / "exports")) / "Screenshots"
-    folder.mkdir(parents=True, exist_ok=True)
+    folder = screenshot_folder(cfg)
     m, s_ = divmod(max(0.0, at - c["src_start"]), 60)
     base = f"{_safe(c['title'])} - {int(m)}m{s_:04.1f}s" + (" (Short)" if vertical else " (stream)")
     out = folder / f"{base}.png"
@@ -401,6 +399,14 @@ def snapshot(cfg, job, cid, at, vertical=True, layout=None, framing=None, sectio
         n += 1
     shot(src, min(max(0.0, at - off), max(0.0, dur - 0.05)), out, cfg, sw, sh, sec, vertical)
     return out
+
+
+def screenshot_folder(cfg):
+    """Where screenshots go: the Screenshot folder setting, else <Export folder>\\Screenshots."""
+    st = cfg["settings"]
+    folder = Path(st.get("screenshot_folder") or Path(st.get("export_folder") or (ROOT / "exports")) / "Screenshots")
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
 
 
 def _safe(name):
