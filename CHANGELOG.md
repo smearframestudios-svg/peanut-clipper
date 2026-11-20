@@ -1,5 +1,14 @@
 # What's new
 
+## 1.4.0
+- Framing for one Short: in the trim editor, open "Framing for this Short" to change where Peanut sits and how much of the game shows, for just that Short.
+- Peanut box and Gameplay box: drag a box to move it, drag on the frame to redraw it, and use Zoom to show more or less. The frame is wherever the stream video is paused.
+- Peanut area height: slide to choose how much of the Short is Peanut and how much is gameplay. You can also switch style (Peanut over gameplay, Gameplay only, Whole stream).
+- Live preview: a small vertical preview with your banners updates as you drag.
+- Use for this Short: re-cuts only this Short with that framing. Your layouts stay the same.
+- Save as new layout: keeps this framing as a layout you can pick for future streams.
+- Reset to layout: goes back to the layout's framing (press Update Short to re-cut).
+
 ## 1.3.5
 - Slide the whole selection: in the trim editor, grab the yellow selected area and drag it left or right. Both ends move together and the length stays the same. The handles still change the start and end on their own.
 

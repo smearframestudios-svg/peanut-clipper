@@ -61,6 +61,7 @@ def main(argv=None):
     rr.add_argument("start", type=float)
     rr.add_argument("end", type=float)
     rr.add_argument("--layout")
+    rr.add_argument("--framing", help="this Short's own framing as JSON, or none to go back to the layout")
     sf = sub.add_parser("syncfix", help="convert a Short's (or a search's) stream to H.264")
     sf.add_argument("job")
     sf.add_argument("id", nargs="?")
@@ -130,7 +131,7 @@ def main(argv=None):
         run_auto(cfg)
     elif a.cmd == "rerender":
         from .library import rerender
-        rerender(cfg, a.job, a.id, a.start, a.end, a.layout)
+        rerender(cfg, a.job, a.id, a.start, a.end, a.layout, a.framing)
     elif a.cmd == "syncfix":
         if a.search:
             from .search import syncfix_search

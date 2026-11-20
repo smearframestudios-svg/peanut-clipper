@@ -90,6 +90,11 @@ a{color:var(--blue)}
 .ed-ctrl{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:6px}
 .ed-ctrl .grp{display:flex;align-items:center;gap:6px}.ed-ctrl .btn{padding:7px 11px;font-size:13px}
 .ed-ctrl .lbl{font-weight:700;min-width:84px}
+.fr-wrap{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.fr{display:flex;gap:16px;align-items:flex-start;margin-top:10px}
+.fr-stage{position:relative;flex:1;min-width:0;user-select:none;cursor:crosshair}.fr-stage canvas{width:100%;display:block;border-radius:8px;background:#0c0d0f}
+.fr-side{width:300px;flex:none;display:flex;flex-direction:column;gap:8px}
+.fr-prev{display:flex;justify-content:center}.fr-prev canvas{width:150px;border-radius:8px;background:#000}
 .ed-foot{display:flex;align-items:center;gap:12px;margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
 .ov{display:flex;align-items:center;gap:12px;background:var(--panel2);border-radius:10px;padding:10px;margin-bottom:8px}
 .ov img{width:54px;height:96px;object-fit:contain;background:repeating-conic-gradient(#333 0 25%,#222 0 50%) 0 0/12px 12px;border-radius:6px}
@@ -324,6 +329,25 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
       </div>
       <div class="row" style="margin-top:12px"><button class="btn" id="edPlaySel">&#9654; Play selection</button><button class="btn" id="edPlayPre">&#9654; Play 15s before it</button>
         <button class="btn" id="edWider">Show more of the stream</button><button class="btn" id="edReset">Reset</button></div>
+      <div class="fr-wrap">
+        <button class="btn" id="frToggle">Framing for this Short &#9662;</button> <span class="tiny mute" id="frState"></span>
+        <div id="frPanel" style="display:none">
+          <div class="row" style="margin-top:10px"><span class="seg" id="frMode"><button data-m="stack">Peanut over gameplay</button><button data-m="single">Gameplay only</button><button data-m="blurfit">Whole stream</button></span></div>
+          <div class="fr">
+            <div class="fr-stage" id="frStage"><canvas id="frCan" width="960" height="540"></canvas>
+              <div class="box av" id="f_avatar"></div><div class="box gp" id="f_gameplay"></div></div>
+            <div class="fr-side">
+              <div id="frWhich"><label class="toggle"><input type="radio" name="frw" value="avatar" checked> <b style="color:#ff4fb3">Peanut box</b></label>
+                <label class="toggle"><input type="radio" name="frw" value="gameplay"> <b style="color:#3fa9ff">Gameplay box</b></label>
+                <p class="tiny mute" style="margin:4px 0 0"><b>Move:</b> drag inside the box. <b>Redraw:</b> drag on the frame. The frame is wherever the stream video above is paused.</p></div>
+              <label class="tiny mute" id="frZoomWrap"><b>Zoom:</b> smaller box = closer in <input type="range" id="frZoom" min="5" max="100" step="1" style="width:100%"></label>
+              <label class="tiny mute" id="frThWrap"><b>Peanut area height:</b> <span id="frThV"></span> <input type="range" id="frTh" min="480" max="1300" step="10" style="width:100%"></label>
+              <div class="fr-prev"><canvas id="frPrev" width="270" height="480"></canvas></div>
+              <div class="row"><button class="btn main" id="frUse">Use for this Short</button><button class="btn" id="frSaveLy">Save as new layout</button><button class="btn" id="frReset">Reset to layout</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="ed-side"><div class="tiny mute" style="margin-bottom:6px">Current Short</div><video id="edShort" controls preload="none"></video></div>
   </div>
@@ -621,6 +645,7 @@ async function openEditor(c){
   E={job:c.job,id:c.id,off,dur:info.duration,a:info.start-off,b:info.end-off,oa:info.start-off,ob:info.end-off,pad:60};
   setView();updateLayoutMenus();
   const src=(LY||S.layouts);$('edLayout').value=src.layouts.some(l=>l.id===info.layout)?info.layout:src.default;
+  frInit(info.framing||null);
   $('edTitle').textContent=c.title;$('edSrc').src=`/source/${c.job}/${c.id}`;
   $('edShort').src=`/media/${c.job}/${info.file}`;$('edShort').poster=`/media/${c.job}/${info.poster}`;
   $('ed').classList.add('on');
@@ -668,9 +693,74 @@ $('edReset').onclick=()=>{E.a=E.oa;E.b=E.ob;E.pad=60;setView();drawTL();$('edSrc
 $('edSave').onclick=async()=>{if(!E||edSaving)return;
   if(E.b-E.a>180&&!confirm('This is over 3 minutes, which is longer than YouTube allows for a Short. Make it anyway?'))return;
   edSaving=true;$('edSave').disabled=true;$('edSave').textContent='Updating...';$('edSrc').pause();
-  try{const r=await api('/api/run',{kind:'rerender',job:E.job,id:E.id,start:E.a+E.off,end:E.b+E.off,layout:$('edLayout').value});
+  try{const r=await api('/api/run',{kind:'rerender',job:E.job,id:E.id,start:E.a+E.off,end:E.b+E.off,layout:$('edLayout').value,framing:frSend()});
     if(r.queued){edSaving=false;$('edSave').disabled=false;$('edSave').textContent='Update Short';closeEditor();toast('<b>In line:</b> this Short updates when the current job finishes.');poll();return}
     lastJobKey='running';poll()}catch(e){edSaving=false;$('edSave').disabled=false;$('edSave').textContent='Update Short'}};
+
+// ---------- framing for one Short (trim editor) ----------
+// F = this Short's framing (boxes, style, Peanut height). Starts from its own saved framing, else its layout.
+let F=null,frOwn=false,frDrag=null;
+const frLay=()=>{const src=LY||S.layouts;return src.layouts.find(l=>l.id===$('edLayout').value)||src.layouts[0]};
+const frPick=l=>clone({mode:l.mode,top_height:l.top_height||760,avatar:l.avatar||{x:.7,y:.5,w:.3,h:.5},gameplay:l.gameplay||{x:.15,y:0,w:.7,h:1}});
+function frInit(own){frOwn=!!own;F=own?clone(own):frPick(frLay());frSync()}
+function frSend(){return frOwn?F:'none'}
+function frMark(){frOwn=true;frSync()}
+function frSync(){if(!F)return;
+  $('frState').textContent=frOwn?'Custom framing for this Short':'Using the layout\'s framing';
+  document.querySelectorAll('#frMode button').forEach(b=>b.classList.toggle('on',b.dataset.m===F.mode));
+  $('frWhich').style.display=F.mode==='blurfit'?'none':'';$('frZoomWrap').style.display=F.mode==='blurfit'?'none':'';
+  $('frThWrap').style.display=F.mode==='stack'?'':'none';$('frTh').value=F.top_height;$('frThV').textContent=Math.round(F.top_height/1920*100)+'%';
+  if(F.mode==='single')document.querySelector('[name=frw][value=gameplay]').checked=true;
+  document.querySelector('[name=frw][value=avatar]').parentElement.style.display=F.mode==='stack'?'':'none';
+  const b=F[frSel()];$('frZoom').value=Math.round(b.w*100);frDraw()}
+const frSel=()=>document.querySelector('[name=frw]:checked').value;
+function frDraw(){if(!F||$('frPanel').style.display==='none')return;
+  const v=$('edSrc'),W=v.videoWidth,H=v.videoHeight,c=$('frCan'),x=c.getContext('2d');
+  if(W){c.width=960;c.height=Math.round(960*H/W);x.drawImage(v,0,0,c.width,c.height)}
+  for(const k of ['avatar','gameplay']){const b=F[k],e=$('f_'+k);
+    e.style.display=(k==='gameplay'?F.mode!=='blurfit':F.mode==='stack')?'block':'none';
+    e.style.left=b.x*100+'%';e.style.top=b.y*100+'%';e.style.width=b.w*100+'%';e.style.height=b.h*100+'%'}
+  const p=$('frPrev'),y=p.getContext('2d'),PW=270,PH=480;y.fillStyle='#1a1b1f';y.fillRect(0,0,PW,PH);if(!W)return;
+  const cover=(b,dy,dh)=>{let sx=b.x*W,sy=b.y*H,sw=b.w*W,sh=b.h*H;const r=PW/dh;
+    if(sw/sh>r){const nw=sh*r;sx+=(sw-nw)/2;sw=nw}else{const nh=sw/r;sy+=(sh-nh)/2;sh=nh}
+    y.drawImage(v,sx,sy,sw,sh,0,dy,PW,dh)};
+  const top=F.top_height/1920*PH;
+  if(F.mode==='stack'){cover(F.avatar,0,top);cover(F.gameplay,top,PH-top)}
+  else if(F.mode==='single')cover(F.gameplay,0,PH);
+  else{y.filter='blur(6px) brightness(0.8)';cover({x:0,y:0,w:1,h:1},0,PH);y.filter='none';const h=PW*H/W;y.drawImage(v,0,(PH-h)/2,PW,h)}
+  const seam=F.mode==='stack'?top:F.mode==='single'?PH/2:(PH-PW*H/W)/2,lay=frLay();
+  for(const o of (S.settings.overlays||[])){const on=lay.banners==null?o.enabled!==false:lay.banners.includes(o.file);
+    if(!on||!/\.(png|webp|jpe?g)$/i.test(o.file))continue;const im=ovImgs[o.file];
+    if(!im){const n=ovImgs[o.file]=new Image();n.onload=frDraw;n.src='/overlay/'+encodeURIComponent(o.file);continue}
+    if(!im.complete||!im.naturalWidth)continue;if(o.position==='full'){y.drawImage(im,0,0,PW,PH);continue}
+    const h=PW*im.naturalHeight/im.naturalWidth,off=(o.offset||0)/4;y.drawImage(im,0,(o.position==='top'?0:o.position==='bottom'?PH-h:seam-h/2)+off,PW,h)}
+}
+$('frToggle').onclick=()=>{const p=$('frPanel'),open=p.style.display==='none';p.style.display=open?'':'none';
+  $('frToggle').innerHTML='Framing for this Short '+(open?'&#9652;':'&#9662;');if(open){$('edSrc').pause();frDraw()}};
+['seeked','loadeddata','pause'].forEach(ev=>$('edSrc').addEventListener(ev,frDraw));
+document.querySelectorAll('#frMode button').forEach(b=>b.onclick=()=>{F.mode=b.dataset.m;frMark()});
+document.querySelectorAll('[name=frw]').forEach(r=>r.onchange=()=>frSync());
+$('frZoom').oninput=()=>{const k=frSel(),b=F[k],cx=b.x+b.w/2,cy=b.y+b.h/2,ar=b.h/b.w;
+  let w=Math.min(1,+$('frZoom').value/100),h=Math.min(1,w*ar);w=h/ar;
+  F[k]={w,h,x:Math.min(1-w,Math.max(0,cx-w/2)),y:Math.min(1-h,Math.max(0,cy-h/2))};frOwn=true;$('frState').textContent='Custom framing for this Short';frDraw()};
+$('frTh').oninput=()=>{F.top_height=+$('frTh').value;frMark()};
+const frPos=e=>{const r=$('frStage').getBoundingClientRect();return[Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))]};
+$('frStage').onmousedown=e=>{if(!F||F.mode==='blurfit')return;e.preventDefault();const p=frPos(e),k=frSel(),b=F[k];
+  frDrag=(p[0]>=b.x&&p[0]<=b.x+b.w&&p[1]>=b.y&&p[1]<=b.y+b.h)?{move:true,k,dx:p[0]-b.x,dy:p[1]-b.y}:{move:false,k,s:p}};
+window.addEventListener('mousemove',e=>{if(!frDrag)return;const p=frPos(e),b=F[frDrag.k];
+  if(frDrag.move){b.x=Math.min(1-b.w,Math.max(0,p[0]-frDrag.dx));b.y=Math.min(1-b.h,Math.max(0,p[1]-frDrag.dy))}
+  else F[frDrag.k]={x:Math.min(frDrag.s[0],p[0]),y:Math.min(frDrag.s[1],p[1]),w:Math.max(.03,Math.abs(p[0]-frDrag.s[0])),h:Math.max(.03,Math.abs(p[1]-frDrag.s[1]))};
+  frOwn=true;$('frState').textContent='Custom framing for this Short';frDraw()});
+window.addEventListener('mouseup',()=>{if(frDrag){frDrag=null;frSync()}});
+$('edLayout').addEventListener('change',()=>{if(!frOwn)frInit(null)});
+$('frReset').onclick=()=>{frInit(null);toast('<b>Back to the layout:</b> press Update Short to re-cut with it.')};
+$('frUse').onclick=()=>{frOwn=true;$('edSave').click()};
+$('frSaveLy').onclick=async()=>{const name=prompt('Name for the new layout (e.g. "GTA close-up"):');if(!name)return;
+  const data=clone(LY||S.layouts),base=frLay();
+  const l=Object.assign({id:newId(),name:name.trim().slice(0,40),banners:base.banners??null},clone(F));
+  data.layouts.push(l);await api('/api/layouts',data);S.layouts=clone(data);if(LY){LY.layouts.push(clone(l))}
+  updateLayoutMenus();$('edLayout').value=l.id;frOwn=false;frSync();
+  toast('<b>Saved "'+esc(l.name)+'".</b> Pick it when you make Shorts. Press Update Short to use it here.')};
 
 // ---------- banner files ----------
 const ovImgs={};

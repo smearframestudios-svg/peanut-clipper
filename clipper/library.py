@@ -1,4 +1,5 @@
 """The finished Shorts on disk: list, decide, trim, export, and clean up (auto-delete)."""
+import json
 import datetime as dt
 import re
 import shutil
@@ -135,7 +136,7 @@ def source_info(cfg, job, cid):
     if not c.get("source_file") or not src.exists():
         return {"available": False}
     from .download import needs_sync_fix
-    info = {"available": True, "layout": c.get("layout"), "start": c["src_start"], "end": c["src_end"],
+    info = {"available": True, "layout": c.get("layout"), "framing": c.get("framing"), "start": c["src_start"], "end": c["src_end"],
             "file": c["file"], "poster": c["poster"], "title": c["title"], "offset": 0}
     if needs_sync_fix(src):
         win = edit_win(c)
@@ -177,12 +178,29 @@ def syncfix(cfg, job, cid):
     print("@@ 100 Ready - opening the editor", flush=True)
 
 
-def rerender(cfg, job, cid, start, end, layout=None):
+def clean_framing(fr):
+    """A Short's own framing: style, Peanut height and the two boxes (0..1 of the stream frame)."""
+    out = {"mode": fr.get("mode") if fr.get("mode") in ("stack", "single", "blurfit") else "stack",
+           "top_height": max(300, min(1600, int(fr.get("top_height", 760))))}
+    for k in ("avatar", "gameplay"):
+        b = fr.get(k) or {}
+        w, h = (max(0.02, min(1.0, float(b.get(q, 0.5)))) for q in ("w", "h"))
+        out[k] = {"w": w, "h": h, "x": max(0.0, min(1.0 - w, float(b.get("x", 0)))), "y": max(0.0, min(1.0 - h, float(b.get("y", 0))))}
+    return out
+
+
+def rerender(cfg, job, cid, start, end, layout=None, framing=None):
     from .render import render_short
     from .transcribe import transcribe_range
     from .util import apply_layout
     f, data, c = _find(cfg, job, cid)
     c["layout"] = apply_layout(cfg, layout or c.get("layout"))
+    if framing == "none":
+        c.pop("framing", None)                 # back to the layout's framing
+    elif framing:
+        c["framing"] = clean_framing(json.loads(framing) if isinstance(framing, str) else framing)
+    if c.get("framing"):
+        cfg["layout"].update(c["framing"])     # this Short's own boxes win over the layout's
     src = Path(c.get("source_file", ""))
     if not src.exists():
         raise SystemExit("[!] The full stream for this Short was already deleted, so it can't be re-cut.")

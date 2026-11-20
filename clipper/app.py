@@ -381,6 +381,10 @@ def make_handler():
                 elif kind == "rerender":
                     args = ["rerender", body["job"], body["id"], str(float(body["start"])), str(float(body["end"]))] + \
                         (["--layout", body["layout"]] if body.get("layout") else [])
+                    if body.get("framing") == "none":
+                        args += ["--framing", "none"]
+                    elif isinstance(body.get("framing"), dict):
+                        args += ["--framing", json.dumps(body["framing"])]
                     label = "Re-cutting the Short..."
                 elif kind == "export":
                     args = ["export", body["job"], body["id"]] if body.get("id") else ["export", "--all"]
