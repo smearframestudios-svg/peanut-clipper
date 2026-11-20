@@ -1,5 +1,12 @@
 # What's new
 
+## 1.8.0
+- Stream time on every Short: Review and Approved cards now show where the Short came from in the stream (like 1:42:07 - 1:42:41), with "Open stream there" (opens YouTube at that exact second) and "Copy time".
+- History: a new tab with every Short you upload, export or reject - its stream time, the stream's name and date, and a small picture. It stays even after the video files are deleted, so you can always go back and grab a screenshot.
+- Find it fast: search History by title or words said, or show only Uploaded, Exported or Rejected. Uploaded ones have a "Watch the Short" link.
+- Screenshot from History: while the stream is still on your PC, pick any time and save a full-size picture of the stream at that moment.
+- History starts with Shorts finished after this update (older deleted ones weren't recorded).
+
 ## 1.7.0
 - Record live: a new card at the top of Make Shorts records Peanut's stream while he's live - video and chat - so you don't have to wait hours for YouTube to process it.
 - Record now or wait: press Record now while he's live, or "Wait for him to go live" and it checks every 5 minutes and starts on its own.

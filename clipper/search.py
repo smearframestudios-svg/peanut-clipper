@@ -180,7 +180,7 @@ def run_search(cfg, source, words_text, start=None, end=None, use_chat=True, sim
             "created": dt.datetime.now().isoformat(timespec="seconds")}
     save_json(out / "search.json", data)
     save_json(out / "clips.json", {"job": sid, "source": source, "clips": [], "source_dir": data["source_dir"],
-                                   "created": data["created"]})
+                                   "created": data["created"], **download.stream_extras(dl)})
     progress(100, f"Found {len(matches)} match{'es' if len(matches) != 1 else ''}")
     print(f"  {len(matches)} matches for: {', '.join(data['queries'])}")
     return sid

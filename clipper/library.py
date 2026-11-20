@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from .util import ROOT, load_json, probe, safe_unlink, save_json
+from .util import DATA, ROOT, load_json, probe, safe_unlink, save_json
 
 DONE = ("rejected", "uploaded", "exported")
 
@@ -21,8 +21,99 @@ def clips(cfg, status="pending"):
         data = load_json(f)
         for c in data["clips"]:
             if c["status"] == status:
-                out.append(dict(c, job=f.parent.name))
+                out.append(dict(c, job=f.parent.name, **stream_info(data, c)))
     return out
+
+
+# ------------------------------------------------------------------ where a Short came from in the stream
+def _video_id(url):
+    import re
+    m = re.search(r"(?:v=|youtu\.be/|/live/|/shorts/)([\w-]{11})", url or "")
+    return m.group(1) if m else ""
+
+
+def stream_link(url, t):
+    """A link that opens the stream at second t (YouTube or Twitch), or '' for local files."""
+    import re
+    t = max(0, int(t))
+    vid = _video_id(url)
+    if vid:
+        return f"https://www.youtube.com/watch?v={vid}&t={t}s"
+    m = re.search(r"twitch\.tv/videos/(\d+)", url or "")
+    if m:
+        return f"https://www.twitch.tv/videos/{m.group(1)}?t={t // 3600}h{t % 3600 // 60}m{t % 60}s"
+    return ""
+
+
+def stream_info(data, c):
+    """Where this Short is in the original stream (seconds as on YouTube/Twitch) + a link that opens it there."""
+    src = data.get("source") or ""
+    is_url = src.startswith(("http://", "https://"))
+    shift = float(data.get("stream_offset") or 0)
+    s, e = float(c.get("start", 0)) + shift, float(c.get("end", 0)) + shift
+    created = (data.get("created") or "")[:10]
+    return {"stream_start": round(s, 2), "stream_end": round(e, 2), "stream_link": stream_link(src, s) if is_url else "",
+            "stream_url": src if is_url else "", "stream_title": data.get("stream_title") or ("" if is_url else Path(src).name),
+            "stream_date": created}
+
+
+HISTORY = DATA / "history.json"
+THUMBS = DATA / "history"
+
+
+def history_add(job_dir, data, c):
+    """Keep a permanent record of a finished Short (uploaded / exported / rejected), even after its files are deleted."""
+    job_dir = Path(job_dir)
+    key = f"{data.get('job') or job_dir.name}:{c['id']}"
+    info = stream_info(data, c)
+    thumb = ""
+    p = job_dir / (c.get("poster") or "")
+    if c.get("poster") and p.is_file():
+        THUMBS.mkdir(parents=True, exist_ok=True)
+        thumb = key.replace(":", "_") + ".jpg"
+        try:
+            shutil.copy2(p, THUMBS / thumb)
+        except OSError:
+            thumb = ""
+    entry = dict(info, key=key, title=c.get("title", ""), status=c["status"],
+                 when=dt.datetime.now().isoformat(timespec="seconds"), transcript=(c.get("transcript") or "")[:500],
+                 youtube_id=c.get("youtube_id", ""), publish_at=c.get("publish_at", ""),
+                 exported_to=c.get("exported_to", ""), length=c.get("length"), thumb=thumb,
+                 source_file=c.get("source_file", ""),
+                 file_shift=round(info["stream_start"] - float(c.get("src_start", c.get("start", 0))), 3))
+    hist = [h for h in (load_json(HISTORY, []) or []) if h.get("key") != key]
+    hist.append(entry)
+    save_json(HISTORY, hist[-5000:])
+
+
+def history(cfg):
+    hist = load_json(HISTORY, []) or []
+    for h in hist:
+        h["available"] = bool(h.get("source_file")) and Path(h["source_file"]).is_file()
+    return list(reversed(hist))
+
+
+def history_shot(cfg, key, at):
+    """Screenshot of the full stream frame at `at` (stream seconds) - while the stream is still on the PC."""
+    from .render import snapshot as shot
+    h = next((x for x in load_json(HISTORY, []) or [] if x.get("key") == key), None)
+    if not h:
+        raise SystemExit("[!] That Short isn't in the history.")
+    src = Path(h.get("source_file") or "")
+    if not src.is_file():
+        raise SystemExit("[!] The stream was already deleted from this PC. Use \"Open stream there\" and pause it on YouTube.")
+    dur, sw, sh = probe(src)
+    t = min(max(0.0, at - float(h.get("file_shift") or 0)), max(0.0, dur - 0.05))
+    folder = Path(cfg["settings"].get("export_folder") or (ROOT / "exports")) / "Screenshots"
+    folder.mkdir(parents=True, exist_ok=True)
+    a = int(at)
+    base = f"{_safe(h['title'])} - stream {a // 3600}h{a % 3600 // 60:02d}m{a % 60:02d}s"
+    out = folder / f"{base}.png"
+    n = 2
+    while out.exists():
+        out = folder / f"{base} ({n}).png"
+        n += 1
+    return shot(src, t, out, cfg, sw, sh, None, vertical=False)
 
 
 def counts(cfg):
@@ -96,14 +187,17 @@ def decide(cfg, job, cid, status, title=None):
         if new and new != c["title"]:
             c["description"] = c["description"].replace(c["title"], new, 1)
             c["title"] = new
-        if status == "rejected" and cfg["settings"]["delete_rejected"]:
-            delete_files(job_dir, c)
+        if status == "rejected":
+            history_add(job_dir, data, c)
+            if cfg["settings"]["delete_rejected"]:
+                delete_files(job_dir, c)
     save_json(f, data)
     cleanup_sources(cfg)
     prune(job_dir)
 
 
 def after_upload(cfg, json_path, data, clip):
+    history_add(Path(json_path).parent, data, clip)
     if cfg["settings"]["delete_uploaded"]:
         delete_files(json_path.parent, clip)
     save_json(json_path, data)

@@ -135,7 +135,8 @@ def _render_all(cands, video, out, job, cfg, sw, sh, src_url, offset=0.0, source
         })
     save_json(out / "clips.json", {"job": job, "source": src_url or str(video), "clips": clips,
                                    "source_dir": str(source_dir) if source_dir else None,
-                                   "created": dt.datetime.now().isoformat(timespec="seconds")})
+                                   "created": dt.datetime.now().isoformat(timespec="seconds"),
+                                   **download.stream_extras(source_dir)})
     print(f"\n  done -> {out}  ({len(clips)} Shorts)")
     return out
 

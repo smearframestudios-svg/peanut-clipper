@@ -61,9 +61,11 @@ def plan(cfg):
     todo = list(approved_clips(cfg))
     taken = set(load_json(cfg["paths"]["work_dir"] / "schedule.json", []))
     slots = _slots(cfg, len(todo), taken) if cfg["upload"].get("schedule") else [None] * len(todo)
+    from .library import stream_info
     return [{"title": c["title"], "when": w.strftime("%a %b %d, %I:%M %p") if w else "right away",
              "job": p.parent.name, "id": c["id"], "length": c.get("length"),
-             "poster": f"/media/{p.parent.name}/{c['poster']}"} for (p, _, c), w in zip(todo, slots)]
+             "poster": f"/media/{p.parent.name}/{c['poster']}", **stream_info(d, c)}
+            for (p, d, c), w in zip(todo, slots)]
 
 
 def upload_approved(cfg, dry_run=False):

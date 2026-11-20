@@ -213,6 +213,9 @@ def record(cfg, url, from_start=True, wait=False, then_make=False):
         log.close()
         STOP.unlink(missing_ok=True)
     try:
+        (folder / "title.txt").write_text(title or "", encoding="utf-8")
+        if parts and not from_start and start_epoch:      # began recording after the stream started
+            (folder / "live_offset.txt").write_text(f"{max(0.0, parts[0][1] - start_epoch):.1f}")
         out = finish(folder, parts, t0, from_start)
     except Exception as e:  # noqa: BLE001
         _write(state="error", message=f"Saving the recording failed: {e}")

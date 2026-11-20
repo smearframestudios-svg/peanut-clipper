@@ -112,9 +112,11 @@ def download_video(url, job_dir, cfg, start=None, end=None):
     if done:
         print(f"  using the video downloaded earlier ({done[0].stat().st_size // 1_000_000} MB)")
         return fix_sync(done[0], cfg)
-    status = subprocess.run(_yt_dlp() + ["--no-playlist", "--skip-download", "--print", "live_status", url],
-                            capture_output=True, text=True).stdout.strip().splitlines()
-    status = status[-1] if status else ""
+    got = subprocess.run(_yt_dlp() + ["--no-playlist", "--skip-download", "--print", "%(live_status)s\t%(title)s", url],
+                         capture_output=True, text=True, encoding="utf-8", errors="ignore").stdout.strip().splitlines()
+    status, _, title = (got[-1] if got else "").partition("\t")
+    if title and title != "NA":
+        (job_dir / "title.txt").write_text(title, encoding="utf-8")   # shown in History next to the stream time
     if status in ("is_live", "is_upcoming", "post_live"):
         msg = {"is_live": "is LIVE right now", "is_upcoming": "hasn't started yet",
                "post_live": "just ended and YouTube is still processing it"}[status]
@@ -152,6 +154,23 @@ def download_video(url, job_dir, cfg, start=None, end=None):
     if not files:
         raise RuntimeError("yt-dlp finished but no video file was found")
     return fix_sync(files[0], cfg)
+
+
+def stream_extras(folder):
+    """Stream title + how far into the stream our file starts (a live recording begun late), for clips.json."""
+    out = {}
+    if not folder:
+        return out
+    folder = Path(folder)
+    try:
+        out["stream_title"] = (folder / "title.txt").read_text(encoding="utf-8").strip()
+    except OSError:
+        pass
+    try:
+        out["stream_offset"] = float((folder / "live_offset.txt").read_text().strip())
+    except (OSError, ValueError):
+        pass
+    return out
 
 
 def download_chat(url, job_dir, start=None, end=None):

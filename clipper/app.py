@@ -280,6 +280,11 @@ def make_handler():
             if p == "/api/live":
                 from . import live
                 return self._send(200, live.state())
+            if p == "/api/history":
+                return self._send(200, library.history(cfg))
+            if p.startswith("/history_thumb/"):
+                f = library.THUMBS / Path(p.split("/")[2]).name
+                return self._file(f) if f.is_file() else self._send(404, "not found")
             if p == "/api/comps":
                 from .compile import CRASH_WORDS, all_comps
                 return self._send(200, {"comps": all_comps(), "crash_words": CRASH_WORDS})
@@ -488,6 +493,12 @@ def make_handler():
                     return self._send(200, comp.edit(body["id"], body["action"], body) or {"ok": True})
                 except SystemExit as e:
                     return self._send(400, {"error": str(e).replace("[!] ", "")})
+            if p == "/api/history_shot":
+                try:
+                    out = library.history_shot(cfg, body["key"], float(body["at"]))
+                except SystemExit as e:
+                    return self._send(400, {"error": str(e).replace("[!] ", "")})
+                return self._send(200, {"ok": True, "name": out.name, "folder": str(out.parent)})
             if p == "/api/sections":
                 library.save_sections(cfg, body["job"], body["id"], body.get("sections") or [])
                 return self._send(200, {"ok": True})

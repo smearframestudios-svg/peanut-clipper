@@ -132,6 +132,13 @@ a{color:var(--blue)}
 @keyframes recp{50%{opacity:.35}}@media(prefers-reduced-motion:reduce){.rec-dot{animation:none}}
 .btn.rec{background:#e5484d;border-color:#e5484d;color:#fff}
 @media(max-width:700px){.live-st{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tc{font:700 13px Consolas,monospace;color:var(--acc)}
+.st-line{margin:8px 0 4px}.st-acts{display:flex;gap:6px;flex-wrap:wrap}.st-acts .btn{padding:5px 9px;font-size:12px;text-decoration:none}
+.hrow{display:flex;gap:12px;align-items:center;background:var(--panel2);border-radius:10px;padding:8px;margin-bottom:8px}
+.hrow img,.hrow .noimg{width:44px;height:78px;object-fit:cover;border-radius:6px;background:#000;flex:none}
+.hrow .tt{flex:1;min-width:0}.hrow .tt b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;display:inline-block;vertical-align:bottom}
+.pill{font-size:11px;border-radius:99px;padding:2px 8px;margin-left:6px;white-space:nowrap}
+.pill.uploaded{background:#183a29;color:#9ee6bd}.pill.exported{background:#1d2c44;color:#9cc4ff}.pill.rejected{background:#3a1d1f;color:#ffb3b6}
 .ed-foot{display:flex;align-items:center;gap:12px;margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
 .ov{display:flex;align-items:center;gap:12px;background:var(--panel2);border-radius:10px;padding:10px;margin-bottom:8px}
 .ov img{width:54px;height:96px;object-fit:contain;background:repeating-conic-gradient(#333 0 25%,#222 0 50%) 0 0/12px 12px;border-radius:6px}
@@ -152,6 +159,7 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
     <button data-t="review">Review<span class="badge" id="nPending"></span></button>
     <button data-t="upload">Approved<span class="badge" id="nApproved"></span></button>
     <button data-t="comps">Compilations</button>
+    <button data-t="history">History</button>
     <button data-t="settings">Settings</button>
     <button data-t="layout">Layouts &amp; Banners</button>
   </nav>
@@ -296,6 +304,16 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
       <span class="seg" id="cmpNum"><button data-v="1">On</button><button data-v="0">Off</button></span></div>
     <div class="row" style="margin-top:14px"><button class="btn main" id="cmpExport">Export video (16:9)</button><button class="btn" id="cmpPrem">Export for Premiere</button>
       <span class="tiny mute">Premiere = every moment as its own file + a ready-made sequence (XML) with each one on its own cut. In Premiere: File &rarr; Import &rarr; the .xml.</span></div>
+  </div>
+</section>
+
+<section id="history">
+  <h2>History</h2><p class="sub">Every Short you've uploaded, exported or rejected - with where it came from in the stream. Kept even after the video files are deleted.</p>
+  <div class="card">
+    <div class="row"><input class="big" type="text" id="hSearch" placeholder="Search titles or words said..." style="flex:1">
+      <span class="seg" id="hFilter"><button data-v="" class="on">All</button><button data-v="uploaded">Uploaded</button><button data-v="exported">Exported</button><button data-v="rejected">Rejected</button></span></div>
+    <div class="tiny mute" style="margin:10px 0 12px">"Screenshot" shows while the stream is still on your PC (before auto-delete). After that, "Open stream there" opens it at that exact second so you can pause and grab it.</div>
+    <div id="hList"></div>
   </div>
 </section>
 
@@ -492,7 +510,7 @@ async function api(path,body){
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>show(b.dataset.t));
 function show(t){document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x.dataset.t===t));
   document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id===t));
-  if(t==='review')loadClips(); if(t==='comps')loadComps(); if(t==='upload')loadPlan(); if(t==='settings')fillSettings(); if(t==='layout')initLayout();}
+  if(t==='review')loadClips(); if(t==='comps')loadComps(); if(t==='history')loadHistory(); if(t==='upload')loadPlan(); if(t==='settings')fillSettings(); if(t==='layout')initLayout();}
 
 // ---------- state polling ----------
 let down=0, quitting=false, reloadWhenBack=false;
@@ -610,6 +628,39 @@ async function openSearch(sid,keepPlayer){
     const r=await api('/api/run',{kind:'fromsearch',sid:KW.sid,idx:m.i,export:b.dataset.a==='export',layout:$('mkLayout').value});lastJobKey='running';if(r.queued)toast('<b>In line:</b> this match is cut when the current job finishes.');poll()});
   markAdded();
 }
+
+// ---------- where a Short came from in the stream (cards + History) ----------
+const tcode=t=>{t=Math.max(0,Math.floor(t||0));const h=Math.floor(t/3600),m=Math.floor(t%3600/60),s=t%60;return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(s).padStart(2,'0')};
+const fromCode=v=>{const p=String(v).trim().split(':').map(Number);if(p.some(isNaN)||!p.length)return null;return p.reduce((a,x)=>a*60+x,0)};
+const niceDate=d=>{if(!d)return'';const x=new Date(d+(d.length===10?'T12:00':''));return isNaN(x)?d:x.toLocaleDateString([], {month:'short',day:'numeric'})};
+function streamLine(c){if(c.stream_start==null)return'';
+  const where=c.stream_title?`"${esc(c.stream_title)}"`:'';const day=c.stream_date?`${niceDate(c.stream_date)} stream`:'';
+  return `<div class="st-line tiny"><span class="mute">From the stream at</span> <span class="tc">${tcode(c.stream_start)} - ${tcode(c.stream_end)}</span>
+    <div class="mute">${[where,day].filter(Boolean).join(' &middot; ')}</div></div>
+    <div class="st-acts">${c.stream_link?`<a class="btn" href="${esc(c.stream_link)}" target="_blank" rel="noopener">Open stream there &#8599;</a>`:''}
+    <button class="btn" data-copy="${esc(tcode(c.stream_start)+' - '+tcode(c.stream_end)+(c.stream_link?'  '+c.stream_link:''))}">Copy time</button></div>`}
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-copy]');if(!b)return;
+  try{await navigator.clipboard.writeText(b.dataset.copy);toast('<b>Copied:</b> '+esc(b.dataset.copy))}catch(err){prompt('Copy this:',b.dataset.copy)}});
+let HIST=[],hFilter='';
+async function loadHistory(){HIST=await api('/api/history');drawHistory()}
+function drawHistory(){const q=$('hSearch').value.trim().toLowerCase();
+  const rows=HIST.filter(h=>(!hFilter||h.status===hFilter)&&(!q||(h.title+' '+h.transcript+' '+(h.stream_title||'')).toLowerCase().includes(q)));
+  const verb={uploaded:'Uploaded',exported:'Exported',rejected:'Rejected'};
+  $('hList').innerHTML=rows.length?rows.map(h=>`<div class="hrow">${h.thumb?`<img src="/history_thumb/${esc(h.thumb)}" alt="" loading="lazy">`:'<div class="noimg"></div>'}
+    <div class="tt"><b title="${esc(h.title)}">${esc(h.title)}</b><span class="pill ${h.status}">${verb[h.status]||h.status} ${niceDate((h.when||'').slice(0,10))}</span>
+      <div class="tiny"><span class="tc">${tcode(h.stream_start)} - ${tcode(h.stream_end)}</span> <span class="mute">${h.stream_title?'in "'+esc(h.stream_title)+'"':''}${h.stream_date?' ('+niceDate(h.stream_date)+' stream)':''}</span></div></div>
+    <div class="st-acts">${h.stream_link?`<a class="btn" href="${esc(h.stream_link)}" target="_blank" rel="noopener">Open stream there &#8599;</a>`:''}
+      <button class="btn" data-copy="${esc(tcode(h.stream_start)+' - '+tcode(h.stream_end)+(h.stream_link?'  '+h.stream_link:''))}">Copy time</button>
+      ${h.youtube_id?`<a class="btn" href="https://youtube.com/shorts/${esc(h.youtube_id)}" target="_blank" rel="noopener">Watch the Short &#8599;</a>`:''}
+      ${h.available?`<button class="btn" data-shot="${esc(h.key)}">Screenshot</button>`:''}</div></div>`).join('')
+    :`<div class="empty">${HIST.length?'Nothing matches that search.':'Shorts show up here once they\'re uploaded, exported or rejected.'}</div>`;
+  $('hList').querySelectorAll('[data-shot]').forEach(b=>b.onclick=async()=>{const h=HIST.find(x=>x.key===b.dataset.shot);
+    const v=prompt('Screenshot the stream at what time? (like 1:42:15)',tcode(h.stream_start));if(v==null)return;const at=fromCode(v);
+    if(at==null){toast('That time didn\'t look right - use something like 1:42:15.');return}
+    try{const r=await api('/api/history_shot',{key:h.key,at});
+      toast(`<b>Screenshot saved:</b> ${esc(r.name)}<br><span class="tiny mute">${esc(r.folder)}</span><br><button class="link" onclick="api('/api/open_folder',{path:${esc(JSON.stringify(r.folder)).replace(/'/g,'&#39;')}})">Open the folder</button>`)}catch(e){}})}
+$('hSearch').oninput=drawHistory;
+document.querySelectorAll('#hFilter button').forEach(b=>b.onclick=()=>{hFilter=b.dataset.v;document.querySelectorAll('#hFilter button').forEach(x=>x.classList.toggle('on',x===b));drawHistory()});
 
 // ---------- record live ----------
 let LV={};
@@ -757,6 +808,7 @@ async function loadClips(){
     el.innerHTML=`<video controls preload="none" poster="/media/${c.job}/${c.poster}" src="/media/${c.job}/${c.file}"></video>
       <div class="b"><input type="text" value="${esc(c.title)}">
       <div class="chips"><span class="chip s">score ${c.score}</span><span class="chip">${c.length}s</span>${c.reasons.map(r=>`<span class="chip">${esc(r)}</span>`).join('')}</div>
+      ${streamLine(c)}
       <div class="act"><button class="btn ed">&#9986; Edit</button><button class="btn ok">Approve</button><button class="btn no">Reject</button></div></div>`;
     const send=async st=>{await api('/api/decide',{job:c.job,id:c.id,status:st,title:el.querySelector('input').value});el.remove();poll();
       if(!grid.querySelector('.clip'))grid.innerHTML='<div class="empty" style="grid-column:1/-1">All done. Head to Upload to schedule the approved ones.</div>'};
@@ -772,7 +824,7 @@ async function loadPlan(){
   $('ytSetup').style.display=S.youtube.secret?'none':'block';
   $('ytState').textContent=S.youtube.token?'YouTube connected':(S.youtube.secret?'Google will ask you to sign in on first upload':'');
   const plan=await api('/api/plan');const box=$('plan');
-  box.innerHTML=plan.length?plan.map(p=>`<div class="it"><img src="${p.poster}"><div><b>${esc(p.title)}</b><div class="tiny mute">${p.length}s &middot; YouTube slot: ${esc(p.when)}</div></div>
+  box.innerHTML=plan.length?plan.map(p=>`<div class="it"><img src="${p.poster}"><div><b>${esc(p.title)}</b><div class="tiny mute">${p.length}s &middot; YouTube slot: ${esc(p.when)}</div>${streamLine(p)}</div>
     <span style="margin-left:auto"></span><button class="btn" data-ex="${p.job}|${p.id}">Export for Premiere</button></div>`).join(''):'<div class="mute">No approved Shorts yet.</div>';
   box.querySelectorAll('[data-ex]').forEach(b=>b.onclick=async()=>{const[job,id]=b.dataset.ex.split('|');const r=await api('/api/run',{kind:'export',job,id});lastJobKey='running';toast(r.queued?'<b>In line:</b> exports when the current job finishes.':'Exporting for Premiere...');poll()});
   $('expFolder').textContent=S.settings.export_folder||S.default_export;
