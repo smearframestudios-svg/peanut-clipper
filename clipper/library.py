@@ -130,13 +130,20 @@ def edit_win(c, start=None, end=None):
     return Path(w["file"]), w["off"], w["end"]
 
 
+def save_markers(cfg, job, cid, markers):
+    """Trim-editor markers for one Short: seconds in the stream, sorted, at most 200."""
+    f, data, c = _find(cfg, job, cid)
+    c["markers"] = sorted({round(float(t), 2) for t in markers if float(t) >= 0})[:200]
+    save_json(f, data)
+
+
 def source_info(cfg, job, cid):
     f, data, c = _find(cfg, job, cid)
     src = Path(c.get("source_file", ""))
     if not c.get("source_file") or not src.exists():
         return {"available": False}
     from .download import needs_sync_fix
-    info = {"available": True, "layout": c.get("layout"), "framing": c.get("framing"), "start": c["src_start"], "end": c["src_end"],
+    info = {"available": True, "layout": c.get("layout"), "framing": c.get("framing"), "markers": c.get("markers", []), "start": c["src_start"], "end": c["src_end"],
             "file": c["file"], "poster": c["poster"], "title": c["title"], "offset": 0}
     if needs_sync_fix(src):
         win = edit_win(c)

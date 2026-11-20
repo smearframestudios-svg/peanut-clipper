@@ -418,6 +418,9 @@ def make_handler():
             if p == "/api/cancel":
                 RUNNER.cancel()
                 return self._send(200, {"ok": True})
+            if p == "/api/markers":
+                library.save_markers(cfg, body["job"], body["id"], body.get("markers") or [])
+                return self._send(200, {"ok": True})
             if p == "/api/decide":
                 library.decide(cfg, body["job"], body["id"], body["status"], body.get("title"))
                 return self._send(200, {"ok": True})

@@ -1,5 +1,11 @@
 # What's new
 
+## 1.4.1
+- Markers in the trim editor: press M (or "+ Marker at playhead") to drop a blue marker where the video is.
+- Snap to markers: dragging the start or end handle, or the whole selection, snaps onto a marker when you get close. Untick "Snap to markers" to drag freely.
+- Jump between markers: use the Marker buttons, or click a marker on the timeline. Right-click a marker to remove it, or use "Clear markers".
+- Saved with the Short: markers are still there the next time you open it.
+
 ## 1.4.0
 - Framing for one Short: in the trim editor, open "Framing for this Short" to change where Peanut sits and how much of the game shows, for just that Short.
 - Peanut box and Gameplay box: drag a box to move it, drag on the frame to redraw it, and use Zoom to show more or less. The frame is wherever the stream video is paused.

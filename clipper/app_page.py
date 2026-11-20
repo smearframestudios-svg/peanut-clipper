@@ -86,6 +86,10 @@ a{color:var(--blue)}
 .tl .sel{position:absolute;top:18px;bottom:8px;background:#ffc93c33;border:2px solid var(--acc);border-radius:6px}
 .tl .h{position:absolute;top:12px;bottom:2px;width:14px;margin-left:-7px;background:var(--acc);border-radius:4px;cursor:ew-resize}
 .tl .h::after{content:"";position:absolute;left:5px;top:16px;bottom:16px;width:4px;border-left:2px solid #111;border-right:2px solid #111}
+.tl .mk{position:absolute;top:0;bottom:0;width:12px;margin-left:-6px;cursor:pointer;z-index:2}
+.tl .mk::before{content:"";position:absolute;left:5px;top:0;bottom:0;width:2px;background:#3fa9ff}
+.tl .mk::after{content:"";position:absolute;left:1px;top:0;border:5px solid transparent;border-top:7px solid #3fa9ff}
+.tl .mk.hit::before,.tl .mk.hit::after{filter:brightness(1.6)}
 .tl .ph{position:absolute;top:0;bottom:0;width:2px;background:#fff;pointer-events:none}
 .ed-ctrl{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:6px}
 .ed-ctrl .grp{display:flex;align-items:center;gap:6px}.ed-ctrl .btn{padding:7px 11px;font-size:13px}
@@ -329,6 +333,11 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
       </div>
       <div class="row" style="margin-top:12px"><button class="btn" id="edPlaySel">&#9654; Play selection</button><button class="btn" id="edPlayPre">&#9654; Play 15s before it</button>
         <button class="btn" id="edWider">Show more of the stream</button><button class="btn" id="edReset">Reset</button></div>
+      <div class="row" style="margin-top:10px"><button class="btn" id="mkAdd">+ Marker at playhead <span class="tiny mute">(M)</span></button>
+        <button class="btn" id="mkPrev">&#9664; Marker</button><button class="btn" id="mkNext">Marker &#9654;</button>
+        <label class="toggle"><input type="checkbox" id="mkSnap" checked> Snap to markers</label>
+        <button class="btn" id="mkClear">Clear markers</button>
+        <span class="tiny mute"><b>Markers:</b> click one to jump there, right-click to remove it.</span></div>
       <div class="fr-wrap">
         <button class="btn" id="frToggle">Framing for this Short &#9662;</button> <span class="tiny mute" id="frState"></span>
         <div id="frPanel" style="display:none">
@@ -645,7 +654,7 @@ async function openEditor(c){
   E={job:c.job,id:c.id,off,dur:info.duration,a:info.start-off,b:info.end-off,oa:info.start-off,ob:info.end-off,pad:60};
   setView();updateLayoutMenus();
   const src=(LY||S.layouts);$('edLayout').value=src.layouts.some(l=>l.id===info.layout)?info.layout:src.default;
-  frInit(info.framing||null);
+  frInit(info.framing||null);E.mk=(info.markers||[]).map(t=>t-off).filter(t=>t>=0&&t<=E.dur);
   $('edTitle').textContent=c.title;$('edSrc').src=`/source/${c.job}/${c.id}`;
   $('edShort').src=`/media/${c.job}/${info.file}`;$('edShort').poster=`/media/${c.job}/${info.poster}`;
   $('ed').classList.add('on');
@@ -663,6 +672,13 @@ function drawTL(){
   $('tlOrig').style.left=X(E.oa)+'%';$('tlOrig').style.width=(X(E.ob)-X(E.oa))+'%';
   $('tlSel').style.left=X(E.a)+'%';$('tlSel').style.width=(X(E.b)-X(E.a))+'%';
   $('hIn').style.left=X(E.a)+'%';$('hOut').style.left=X(E.b)+'%';
+  tl.querySelectorAll('.mk').forEach(x=>x.remove());
+  for(const t of (E.mk||[])){if(t<E.vs||t>E.ve)continue;const m=document.createElement('div');m.className='mk'+(Math.abs(t-E.a)<.01||Math.abs(t-E.b)<.01?' hit':'');
+    m.style.left=X(t)+'%';m.title='Marker '+fmt(t+E.off);
+    m.onmousedown=e=>{e.stopPropagation();e.preventDefault()};
+    m.onclick=e=>{e.stopPropagation();$('edSrc').currentTime=t;drawTL()};
+    m.oncontextmenu=e=>{e.preventDefault();e.stopPropagation();E.mk=E.mk.filter(x=>x!==t);mkSave();drawTL()};
+    tl.appendChild(m)}
   const ph=$('edSrc').currentTime||E.a;$('tlPh').style.left=X(ph)+'%';
   $('vIn').textContent=fmt(E.a+E.off);$('vOut').textContent=fmt(E.b+E.off);
   const len=E.b-E.a;$('edLen').textContent=`${len.toFixed(1)}s long`+(Math.abs(E.a-E.oa)>.05||Math.abs(E.b-E.ob)>.05?' (changed)':'');
@@ -680,10 +696,34 @@ let grab=0;
 $('tlSel').onmousedown=e=>{if(!E)return;tlDrag='move';grab=tAt(e)-E.a;$('tl').classList.add('moving');e.stopPropagation();e.preventDefault()};
 $('tl').onmousedown=e=>{if(!E)return;$('edSrc').currentTime=tAt(e);drawTL()};
 window.addEventListener('mousemove',e=>{if(!tlDrag||!E)return;const t=tAt(e);
-  if(tlDrag==='move'){const len=E.b-E.a;E.a=Math.max(0,Math.min(E.dur-len,t-grab));E.b=E.a+len;$('edSrc').currentTime=E.a;drawTL();return}
-  if(tlDrag==='in')E.a=t;else E.b=t;
+  if(tlDrag==='move'){const len=E.b-E.a;let a=t-grab;
+    // snap whichever end is nearer a marker
+    const sa=snap(a),sb=snap(a+len);if(sa!==a&&(sb===a+len||Math.abs(sa-a)<=Math.abs(sb-a-len)))a=sa;else if(sb!==a+len)a=sb-len;
+    E.a=+Math.max(0,Math.min(E.dur-len,a)).toFixed(2);E.b=+(E.a+len).toFixed(2);$('edSrc').currentTime=E.a;drawTL();return}
+  if(tlDrag==='in')E.a=snap(t);else E.b=snap(t);
   E.a=Math.max(0,Math.min(E.a,E.b-3));E.b=Math.min(E.dur,Math.max(E.b,E.a+3));$('edSrc').currentTime=tlDrag==='in'?E.a:E.b;drawTL()});
 window.addEventListener('mouseup',()=>{if(tlDrag){tlDrag=null;$('tl').classList.remove('moving');if(E&&(E.a<E.vs+1||E.b>E.ve-1)){setView();drawTL()}}});
+// ---------- markers (trim editor) ----------
+// snap = within 10 screen pixels of a marker
+function snap(t){if(!E||!E.mk||!E.mk.length||!$('mkSnap').checked)return t;
+  const r=$('tl').getBoundingClientRect(),tol=10/r.width*(E.ve-E.vs);let best=t,d=tol;
+  for(const m of E.mk){const k=Math.abs(m-t);if(k<=d){d=k;best=m}}return best}
+let mkTimer=null;
+function mkSave(){clearTimeout(mkTimer);const job=E.job,id=E.id,list=E.mk.map(t=>t+E.off);
+  mkTimer=setTimeout(()=>api('/api/markers',{job,id,markers:list}).catch(()=>{}),400)}
+function mkAdd(){if(!E)return;const t=+($('edSrc').currentTime||0).toFixed(2);
+  if(E.mk.some(m=>Math.abs(m-t)<.2)){toast('There\'s already a marker there.');return}
+  E.mk.push(t);E.mk.sort((a,b)=>a-b);mkSave();drawTL()}
+function mkJump(dir){if(!E||!E.mk.length)return;const ph=$('edSrc').currentTime;
+  const t=dir>0?E.mk.find(m=>m>ph+.05):[...E.mk].reverse().find(m=>m<ph-.05);if(t===undefined)return;
+  if(t<E.vs||t>E.ve){E.pad=Math.min(1800,Math.max(E.pad,Math.abs(t-(t<E.vs?E.a:E.b))+10));setView()}
+  $('edSrc').currentTime=t;drawTL()}
+$('mkAdd').onclick=mkAdd;$('mkPrev').onclick=()=>mkJump(-1);$('mkNext').onclick=()=>mkJump(1);
+$('mkClear').onclick=()=>{if(!E||!E.mk.length)return;if(!confirm('Remove all markers on this Short?'))return;E.mk=[];mkSave();drawTL()};
+$('mkSnap').onchange=()=>drawTL();
+window.addEventListener('keydown',e=>{if(!E||!$('ed').classList.contains('on'))return;
+  if(/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)&&document.activeElement.type!=='checkbox'&&document.activeElement.type!=='radio'&&document.activeElement.type!=='range')return;
+  if(e.key==='m'||e.key==='M'){e.preventDefault();mkAdd()}});
 let stopAt=null;
 $('edSrc').addEventListener('timeupdate',()=>{if(!E)return;if(stopAt!==null&&$('edSrc').currentTime>=stopAt){$('edSrc').pause();stopAt=null}drawTL()});
 $('edPlaySel').onclick=()=>{$('edSrc').currentTime=E.a;stopAt=E.b;$('edSrc').play()};
