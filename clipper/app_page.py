@@ -249,6 +249,11 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
       <label class="k">Uploaded Shorts</label><label class="toggle"><input type="checkbox" id="s_delete_uploaded"> Delete once they're on YouTube</label>
     </div>
   </div>
+  <div class="card"><h3>Trim editor</h3>
+    <div class="set">
+      <label class="k">Minutes to convert for editing</label><div><select id="s_edit_window_min"><option value="4">4 min</option><option value="6">6 min</option><option value="10">10 min</option><option value="20">20 min</option><option value="30">30 min</option></select> <span class="tiny mute">Only for streams your graphics card can't play smoothly (AV1). Centred on the Short; more minutes = more room to widen it, but a longer wait.</span></div>
+    </div>
+  </div>
   <div class="card"><h3>Speed</h3>
     <div class="set">
       <label class="k">Use my graphics card</label><label class="toggle"><input type="checkbox" id="s_use_gpu"> Faster, and keeps your CPU free</label>
@@ -493,7 +498,7 @@ $('goExportAll').onclick=async()=>{const r=await api('/api/run',{kind:'export'})
 $('goUpload').onclick=async()=>{await api('/api/run',{kind:'upload'});lastJobKey='running';show('make');poll()};
 
 // ---------- settings ----------
-const keys=['saved_keywords','saved_keywords_max','search_lead_sec','search_tail_sec','keep_source_days','export_folder','export_handles_sec','export_vertical_too','output_fps','auto_enabled','auto_time','channel_url','auto_twitch_clips','shorts_per_stream','captions','delete_source','delete_rejected','delete_uploaded','use_gpu','twitch_client_id','twitch_client_secret','schedule_times'];
+const keys=['saved_keywords','saved_keywords_max','search_lead_sec','search_tail_sec','keep_source_days','edit_window_min','export_folder','export_handles_sec','export_vertical_too','output_fps','auto_enabled','auto_time','channel_url','auto_twitch_clips','shorts_per_stream','captions','delete_source','delete_rejected','delete_uploaded','use_gpu','twitch_client_id','twitch_client_secret','schedule_times'];
 async function fillSettings(){
   if(!S)await poll();const st=S.settings;
   for(const k of keys){const el=$('s_'+k);if(!el)continue;
@@ -502,7 +507,7 @@ async function fillSettings(){
 }
 $('save').onclick=async()=>{const body={};
   for(const k of keys){const el=$('s_'+k);if(!el)continue;
-    if(el.type==='checkbox')body[k]=el.checked;else if(el.type==='number'||k==='output_fps')body[k]=parseInt(el.value||'0');
+    if(el.type==='checkbox')body[k]=el.checked;else if(el.type==='number'||k==='output_fps'||k==='edit_window_min')body[k]=parseInt(el.value||'0');
     else if(k==='saved_keywords')body[k]=el.value.split(',').map(s=>s.trim()).filter(Boolean);
     else if(k==='schedule_times')body[k]=el.value.split(',').map(s=>s.trim()).filter(s=>/^\d{1,2}:\d{2}$/.test(s)).map(s=>s.padStart(5,'0'));else body[k]=el.value.trim()}
   const r=await api('/api/settings',body);$('saveMsg').textContent=r.message;await poll();fillSettings()};
@@ -609,7 +614,7 @@ async function openEditor(c){
   const info=await api(`/api/clip_info?job=${encodeURIComponent(c.job)}&id=${encodeURIComponent(c.id)}`);
   if(!info.available){toast('The full stream for this Short was already deleted, so it can\'t be re-cut. (Settings &rarr; Auto-delete controls how long streams are kept.)');return}
   if(info.needs_sync){pendingEdit=c;await api('/api/run',{kind:'syncfix',job:c.job,id:c.id});lastJobKey='running';
-    toast('<b>Getting the editor ready:</b> converting the half hour around this Short (a minute or two). The editor opens by itself.');poll();return}
+    toast('<b>Getting the editor ready:</b> converting a few minutes around this Short (change how many in Settings). The editor opens by itself.');poll();return}
   // off = where the editor's video starts in the stream (only part of an AV1 stream is converted); E.* times are video times
   const off=info.offset||0;
   E={job:c.job,id:c.id,off,dur:info.duration,a:info.start-off,b:info.end-off,oa:info.start-off,ob:info.end-off,pad:60};

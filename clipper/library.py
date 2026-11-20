@@ -139,7 +139,9 @@ def source_info(cfg, job, cid):
             "file": c["file"], "poster": c["poster"], "title": c["title"], "offset": 0}
     if needs_sync_fix(src):
         win = edit_win(c)
-        if not win:
+        want = float(cfg["settings"].get("edit_window_min", 6)) * 60
+        # none yet, or the owner asked for more minutes than were converted last time: convert again
+        if not win or (win[2] - win[1]) < min(want, probe(src)[0]) - 30:
             return dict(info, needs_sync=True)
         # the editor works inside the converted part: times go out and come back with the offset
         return dict(info, needs_sync=False, offset=win[1], duration=win[2] - win[1])
@@ -166,9 +168,10 @@ def syncfix(cfg, job, cid):
     from .download import edit_window, needs_sync_fix
     f, data, c = _find(cfg, job, cid)
     src = Path(c.get("source_file", ""))
-    if needs_sync_fix(src) and not edit_win(c):
+    info = source_info(cfg, job, cid)
+    if needs_sync_fix(src) and info.get("needs_sync"):
         out = src.parent / f"edit_{cid}.mp4"
-        file, off, end = edit_window(src, c["src_start"], c["src_end"], cfg, out)
+        file, off, end = edit_window(src, c["src_start"], c["src_end"], cfg, out, cfg["settings"].get("edit_window_min", 6))
         c["edit_win"] = {"file": str(file), "off": off, "end": end}
         save_json(f, data)
     print("@@ 100 Ready - opening the editor", flush=True)

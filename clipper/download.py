@@ -72,7 +72,7 @@ def run_ffmpeg_progress(cmd, total, lo, hi, label):
         last = _t.time()
         el = last - t0
         left = (el / frac - el) / 60 if frac > 0.02 else None
-        eta = f", about {max(1, round(left))} min left" if left is not None else ""
+        eta = (", under a minute left" if left < 1 else f", about {round(left)} min left") if left is not None else ""
         print(f"@@ {int(lo + frac * (hi - lo))} {label} ({frac * 100:.0f}%{eta})", flush=True)
     return p.wait()
 
@@ -201,18 +201,20 @@ def download_url(url, out_path):
 EDIT_PAD = 15 * 60   # the editor gets 15 minutes before and after the Short
 
 
-def edit_window(src, start, end, cfg, out):
+def edit_window(src, start, end, cfg, out, minutes=None):
     """Convert just the part of a non-H.264 stream around one Short (a minute or two instead of the whole stream).
     Returns (file, offset): editor time 0 = `offset` seconds into the stream."""
     from .util import probe
     total = probe(src)[0]
-    a = max(0.0, start - EDIT_PAD)
-    b = min(total or end + EDIT_PAD, end + EDIT_PAD)
+    # the owner picks the total minutes (Settings); always at least the Short plus 30 s each side
+    pad = EDIT_PAD if minutes is None else max(30.0, (float(minutes) * 60 - (end - start)) / 2)
+    a = max(0.0, start - pad)
+    b = min(total or end + pad, end + pad)
     gpu, v = _sync_args(cfg)
     tmp = Path(out).with_name(Path(out).stem + ".part.mp4")
     base = ["ffmpeg", "-v", "error", "-y"]
     tail = ["-ss", f"{a:.2f}", "-t", f"{b - a:.2f}", "-i", str(src), "-map", "0:v:0", "-map", "0:a:0?"] + v + [str(tmp)]
-    label = "Converting the part of the stream around this Short"
+    label = f"Converting {round((b - a) / 60)} min around this Short"
     rc = run_ffmpeg_progress(base + (["-hwaccel", "cuda"] if gpu else []) + tail, b - a, 5, 95, label)
     if rc != 0 and gpu:
         rc = run_ffmpeg_progress(base + tail, b - a, 5, 95, label)

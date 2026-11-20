@@ -1,5 +1,10 @@
 # What's new
 
+## 1.3.4
+- You pick how much to convert: Settings, Trim editor, "Minutes to convert for editing" (4, 6, 10, 20 or 30 min, centred on the Short). The default is 6 minutes, so the editor is ready even faster.
+- Need more room later: raise the minutes in Settings and open the Short again. Only then does it convert the bigger part.
+- Clearer wait time: the progress bar says "under a minute left" near the end.
+
 ## 1.3.3
 - Editor opens fast: when a stream comes in a format your graphics card can't play smoothly (AV1), the app now converts only the half hour around the Short you're editing, which takes a minute or two instead of an hour or more for the whole stream.
 - Real progress: converting shows a moving percentage and about how many minutes are left, so it never looks stuck.
