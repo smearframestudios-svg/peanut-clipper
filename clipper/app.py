@@ -284,7 +284,7 @@ def make_handler():
                     m["made"] = made.get(m["i"])
                 d["source_available"] = Path(d["source_file"]).is_file()
                 from .download import needs_sync_fix
-                d["needs_sync"] = d["source_available"] and needs_sync_fix(d["source_file"])
+                d["needs_sync"] = d["source_available"] and not d.get("audio_only") and needs_sync_fix(d["source_file"])
                 return self._send(200, d)
             if p.startswith("/search_source/"):
                 sid = Path(p.split("/")[2]).name
@@ -423,6 +423,8 @@ def make_handler():
                         args.append("--no-chat")
                     if body.get("exact"):
                         args.append("--exact")
+                    if body.get("sound_only"):
+                        args.append("--sound-only")
                     label = "Starting the search..."
                     a_, b_ = parse_hms(body.get("from") or None), parse_hms(body.get("to") or None)
                     section = (b_ - (a_ or 0)) if b_ else None

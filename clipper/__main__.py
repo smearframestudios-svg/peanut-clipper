@@ -79,6 +79,7 @@ def main(argv=None):
     se.add_argument("--no-chat", action="store_true")
     se.add_argument("--exact", action="store_true", help="only exact word forms")
     se.add_argument("--layout")
+    se.add_argument("--sound-only", action="store_true", help="download just the sound; video only for matches you use")
     fs = sub.add_parser("fromsearch", help="make a Short (or Premiere export) from a search match")
     fs.add_argument("sid")
     fs.add_argument("idx", type=int)
@@ -167,7 +168,7 @@ def main(argv=None):
     elif a.cmd == "search":
         from .search import run_search
         run_search(cfg, a.source, a.words, parse_hms(a.start), parse_hms(a.end), not a.no_chat, not a.exact,
-                   a.layout)
+                   a.layout, a.sound_only)
     elif a.cmd == "fromsearch":
         from .search import clip_from_match
         st = cfg["settings"]

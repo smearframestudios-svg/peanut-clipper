@@ -194,6 +194,16 @@ def probe(path):
     return float(d["format"]["duration"]), int(s["width"]), int(s["height"])
 
 
+def media_duration(path):
+    """Length in seconds of any audio or video file."""
+    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", str(path)],
+                         capture_output=True, text=True).stdout or "{}"
+    try:
+        return float(json.loads(out)["format"]["duration"])
+    except (KeyError, ValueError, TypeError):
+        raise RuntimeError(f"can't read {path}")
+
+
 def hms(sec):
     sec = int(round(sec))
     return f"{sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}"

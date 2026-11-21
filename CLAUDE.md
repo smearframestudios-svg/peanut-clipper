@@ -24,7 +24,8 @@ overlays/, client_secret.json, token.json, hardware.json, processed.json, logs),
   `clipper/app_page.py` the whole UI (one HTML string).
 - `pipeline.py` find moments -> `score.py` (chat/audio/names), `transcribe.py` (faster-whisper),
   `render.py` (ffmpeg 1080x1920, banners, NVENC), `search.py` (keyword search over a full
-  cached transcript + chat, Shorts/exports from matches, saved keywords), `library.py` (review state, re-cut, sections, screenshots, Premiere export,
+  cached transcript + chat, Shorts/exports from matches, saved keywords; --sound-only = download.download_audio, then
+  search.match_video fetches a ±2 min video piece per used match via download.download_part, shift = piece start), `library.py` (review state, re-cut, sections, screenshots, Premiere export,
   auto-delete, stream_info = a Short's time/link in the stream, permanent History in data/history.json + data/history/ thumbs), `compile.py` (compilations: moments copied out of searches, 16:9 export, Premiere XML; collections = same store with
   kind "collection": Review Shorts copied in (vfile + horizontal file with handles), vertical or horizontal montage),
   `titlecard.py` (Title Cards tab: Pillow renderer, bundled clipper/fonts/BarlowCondensed-BlackItalic.ttf (OFL), /api/titlecard/preview|draft|save),

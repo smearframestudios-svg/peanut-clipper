@@ -9,7 +9,7 @@ from . import download
 from .chat import load_chat
 from .pipeline import progress
 from .transcribe import transcribe_range
-from .util import hms, load_json, probe, save_json, slug
+from .util import hms, load_json, media_duration, probe, save_json, slug
 
 CHUNK = 600          # transcribe in 10-minute pieces (cached, so re-searching is instant)
 LEAD, TAIL = 10, 8   # default seconds before / after a match when making a Short
@@ -64,7 +64,7 @@ def context(words, i0, i1, before=10, after=10):
 
 # ------------------------------------------------------------------ full transcript
 def full_transcript(video, cfg, cache_path, label="Listening to the stream"):
-    dur, _, _ = probe(video)
+    dur = media_duration(video)
     words, segs = [], []
     n = max(1, int((dur + CHUNK - 1) // CHUNK))
     for k in range(n):
@@ -141,7 +141,8 @@ def _merge_marks(a, b):
 
 
 # ------------------------------------------------------------------ the search command
-def run_search(cfg, source, words_text, start=None, end=None, use_chat=True, similar=True, layout=None):
+def run_search(cfg, source, words_text, start=None, end=None, use_chat=True, similar=True, layout=None,
+               audio_only=False):
     from .util import apply_layout
     layout = apply_layout(cfg, layout)
     queries = parse_queries(words_text)
@@ -155,7 +156,11 @@ def run_search(cfg, source, words_text, start=None, end=None, use_chat=True, sim
     if download.is_url(source):
         dl = cfg["paths"]["work_dir"] / "_downloads" / download.cache_key(source, start, end)
         dl.mkdir(parents=True, exist_ok=True)
-        video = download.download_video(source, dl, cfg, start, end)
+        if audio_only:                     # just the sound; video pieces come later, only for matches you use
+            video = download.download_audio(source, dl, start, end)
+            audio_only = video.name.startswith("audio.")
+        else:
+            video = download.download_video(source, dl, cfg, start, end)
         if use_chat:
             progress(32, "Getting chat")
             chat_file = download.download_chat(source, dl, start, end)
@@ -164,7 +169,8 @@ def run_search(cfg, source, words_text, start=None, end=None, use_chat=True, sim
     else:
         video = Path(source)
         cache = _local_cache_dir(cfg, video) / "transcripts.json"
-    dur, _, _ = probe(video)
+        audio_only = False
+    dur = media_duration(video)
     chat = load_chat(chat_file, offset=offset, duration=dur) if chat_file else []
     tr = full_transcript(video, cfg, cache)
     if not tr["words"]:
@@ -177,7 +183,7 @@ def run_search(cfg, source, words_text, start=None, end=None, use_chat=True, sim
             "source_file": str(Path(video).resolve()), "source_dir": str(dl) if dl else None,
             "transcript_cache": str(cache), "offset": offset, "duration": dur,
             "words": words_text, "queries": [q["label"] for q in queries], "matches": matches, "layout": layout,
-            "created": dt.datetime.now().isoformat(timespec="seconds")}
+            "created": dt.datetime.now().isoformat(timespec="seconds"), "audio_only": bool(audio_only)}
     save_json(out / "search.json", data)
     save_json(out / "clips.json", {"job": sid, "source": source, "clips": [], "source_dir": data["source_dir"],
                                    "created": data["created"], **download.stream_extras(dl)})
@@ -212,6 +218,28 @@ def _segments_from_cache(cache_path):
     return segs, words
 
 
+PART_PAD = 120     # a sound-only search downloads this much video either side of a match you use
+
+
+def match_video(cfg, data, a, b):
+    """(video file, shift) for seconds a-b of a search (file time = search time - shift).
+    Sound-only searches download just that piece, unless the whole video is already on the PC."""
+    if not data.get("audio_only"):
+        return Path(data["source_file"]), 0.0
+    if data.get("source_dir"):
+        full = download.full_video(data["source_dir"])
+        if full:
+            return download.fix_sync(full, cfg), 0.0
+    if not data.get("url"):
+        raise SystemExit("[!] This search has no stream link to get the video from.")
+    dur = float(data.get("duration") or 0) or b + PART_PAD
+    pa, pb = max(0.0, a - PART_PAD), min(dur, b + PART_PAD)
+    off = float(data.get("offset") or 0)
+    progress(8, "Getting this part of the video")
+    part = download.download_part(data["url"], cfg, off + pa, off + pb, cfg["paths"]["work_dir"])
+    return part, pa
+
+
 def clip_from_match(cfg, sid, idx, export=False, lead=LEAD, tail=TAIL, layout=None):
     from .library import export_raw
     from .render import render_short
@@ -223,18 +251,25 @@ def clip_from_match(cfg, sid, idx, export=False, lead=LEAD, tail=TAIL, layout=No
     m = next((x for x in data["matches"] if x["i"] == int(idx)), None)
     if not m:
         raise SystemExit("[!] That match wasn't found.")
-    src = Path(data["source_file"])
-    if not src.exists():
-        raise SystemExit("[!] The stream for this search was already deleted. Search again to re-download it.")
-    from .download import fix_sync
-    fixed = fix_sync(src, cfg)
-    if str(fixed) != str(src):
-        data["source_file"] = str(fixed)
-        save_json(out / "search.json", data)
-    src = fixed
-    dur, sw, sh = probe(src)
-    segs, words = _segments_from_cache(data["transcript_cache"])
-    start, end = snap(segs, max(0.0, m["t"] - lead), min(dur, m["t_end"] + tail))
+    if data.get("audio_only"):
+        dur = float(data.get("duration") or 0) or media_duration(data["source_file"])
+        segs, words = _segments_from_cache(data["transcript_cache"])
+        start, end = snap(segs, max(0.0, m["t"] - lead), min(dur, m["t_end"] + tail))
+        src, shift = match_video(cfg, data, start, end)
+    else:
+        src = Path(data["source_file"])
+        if not src.exists():
+            raise SystemExit("[!] The stream for this search was already deleted. Search again to re-download it.")
+        from .download import fix_sync
+        fixed = fix_sync(src, cfg)
+        if str(fixed) != str(src):
+            data["source_file"] = str(fixed)
+            save_json(out / "search.json", data)
+        src, shift = fixed, 0.0
+        dur = probe(src)[0]
+        segs, words = _segments_from_cache(data["transcript_cache"])
+        start, end = snap(segs, max(0.0, m["t"] - lead), min(dur, m["t_end"] + tail))
+    _, sw, sh = probe(src)
     text = " ".join(w["w"] for w in words if start <= w["s"] < end)
     title = make_title(text, [], "", cfg)
     clips_path = out / "clips.json"
@@ -244,7 +279,7 @@ def clip_from_match(cfg, sid, idx, export=False, lead=LEAD, tail=TAIL, layout=No
     if url and "youtube" in url:
         url = f"{url}{'&' if '?' in url else '?'}t={int(data['offset'] + start)}s"
     clip = {"id": cid, "file": "", "poster": "", "start": data["offset"] + start, "end": data["offset"] + end,
-            "src_start": round(start, 2), "src_end": round(end, 2), "source_file": str(src),
+            "src_start": round(start - shift, 2), "src_end": round(end - shift, 2), "source_file": str(src),
             "length": round(end - start, 1), "score": 0, "reasons": [f"says '{m['query']}'" if m["kind"] == "speech"
                                                                     else f"chat says '{m['query']}'"],
             "transcript": text, "title": title, "description": make_description(title, cfg, url),
@@ -257,8 +292,8 @@ def clip_from_match(cfg, sid, idx, export=False, lead=LEAD, tail=TAIL, layout=No
         export_raw(cfg, sid, cid)
     else:
         progress(20, "Making the Short")
-        w = words if cfg["captions"]["enabled"] else []
-        mp4, jpg = render_short(src, start, end, out / f"clip_{cid}.mp4", w, cfg, sw, sh)
+        w = [dict(x, s=x["s"] - shift, e=x["e"] - shift) for x in words] if cfg["captions"]["enabled"] else []
+        mp4, jpg = render_short(src, start - shift, end - shift, out / f"clip_{cid}.mp4", w, cfg, sw, sh)
         clip.update(file=mp4.name, poster=jpg.name)
         cd["clips"].append(clip)
         save_json(clips_path, cd)

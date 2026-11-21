@@ -176,15 +176,22 @@ def add_moment(cfg, cid, sid, idx):
         print("  already in this compilation")
         progress(100, "Already in the compilation")
         return
-    src = Path(data["source_file"])
-    if not src.exists():
-        raise SystemExit("[!] The stream for this search was already deleted. Search again to re-download it.")
-    progress(10, "Copying the moment")
-    dur, _, _ = probe(src)
+    from .search import match_video
+    from .util import media_duration
     segs, words = _segments_from_cache(data["transcript_cache"])
+    if data.get("audio_only"):
+        dur = float(data.get("duration") or 0) or media_duration(data["source_file"])
+    else:
+        src = Path(data["source_file"])
+        if not src.exists():
+            raise SystemExit("[!] The stream for this search was already deleted. Search again to re-download it.")
+        dur = probe(src)[0]
     start, end = snap(segs, max(0.0, m["t"] - LEAD), min(dur, m["t_end"] + TAIL))
     end = min(end, start + 60)
-    ca, cb = max(0.0, start - HANDLE), min(dur, end + HANDLE)
+    src, shift = match_video(cfg, data, start, end)
+    progress(40, "Copying the moment")
+    fdur = probe(src)[0]
+    ca, cb = max(0.0, start - shift - HANDLE), min(fdur, end - shift + HANDLE)
     mid = uuid.uuid4().hex[:8]
     name = f"m_{mid}.mp4"
     cmd = ["ffmpeg", "-v", "error", "-y", "-ss", f"{ca:.3f}", "-i", str(src), "-t", f"{cb - ca:.3f}",
@@ -193,7 +200,7 @@ def add_moment(cfg, cid, sid, idx):
     subprocess.run(cmd, check=True, cwd=f.parent)
     fdur, _, _ = probe(f.parent / name)
     poster = f"m_{mid}.jpg"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{min(fdur, start - ca + 1):.2f}", "-i", name,
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{min(fdur, start - shift - ca + 1):.2f}", "-i", name,
                     "-frames:v", "1", "-vf", "scale=320:-2", poster], check=True, cwd=f.parent)
     said = " ".join(w["w"].strip() for w in words if start <= w["s"] < end)
     title = (m["text"].split('"')[1] if m["kind"] == "chat" and '"' in m["text"] else said)[:70].strip() or m["query"]
@@ -202,7 +209,7 @@ def add_moment(cfg, cid, sid, idx):
         "mid": mid, "file": name, "poster": poster, "title": title, "query": m["query"], "kind": m["kind"],
         "sid": sid, "i": m["i"], "stream": data.get("source", ""), "stream_date": data.get("created", "")[:10],
         "stream_t": round(data.get("offset", 0) + start, 2),
-        "a": round(start - ca, 2), "b": round(min(fdur, end - ca), 2), "dur": round(fdur, 2),
+        "a": round(start - shift - ca, 2), "b": round(min(fdur, end - shift - ca), 2), "dur": round(fdur, 2),
         "added": dt.datetime.now().isoformat(timespec="seconds")})
     save_json(f, c)
     progress(100, f"Added to {c['name']} ({len(c['moments'])} moments, {_mmss(_length(c))})")

@@ -1,5 +1,12 @@
 # What's new
 
+## 1.11.0
+- Sound-only keyword search: a new box on keyword search (on by default) downloads just the sound and chat - about 0.7 GB for a 12-hour stream instead of ~30 GB - and finds your words much faster.
+- Video only when you use it: Make Short, Export for Premiere or Add to compilation on a match downloads just that part of the video (about 2 minutes either side, usually 10-30 seconds to get).
+- Listen: matches from a sound-only search play the sound so you can check them before using them.
+- If the whole stream is already on your PC (from Make Shorts), the search uses it and nothing extra is downloaded.
+- Untick the box to download the whole video like before.
+
 ## 1.10.0
 - Title Cards: a new tab that makes big outlined thumbnail-style text (white, yellow and red lines, red box, red swoosh, rough red brush) as a see-through 1080x1920 picture for the top of a Short.
 - From the Short's title: press "Title card" on any Short in Review (or pick one in the list) and it splits the title into lines and styles them for you. Change any line's words, colour, size or extra.

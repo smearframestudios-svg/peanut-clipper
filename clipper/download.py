@@ -106,12 +106,15 @@ def fix_sync(src, cfg):
     return final
 
 
-def download_video(url, job_dir, cfg, start=None, end=None):
-    done = [p for p in job_dir.glob("source.*") if p.suffix in (".mp4", ".mkv", ".webm")
+def full_video(job_dir):
+    """The whole video downloaded earlier into this folder, or None."""
+    done = [p for p in Path(job_dir).glob("source.*") if p.suffix in (".mp4", ".mkv", ".webm")
             and ".syncing" not in p.name and p.stat().st_size > 1_000_000]
-    if done:
-        print(f"  using the video downloaded earlier ({done[0].stat().st_size // 1_000_000} MB)")
-        return fix_sync(done[0], cfg)
+    return done[0] if done else None
+
+
+def _check_live(url, job_dir):
+    """Remember the stream's title; stop if it's still live / not processed yet."""
     got = subprocess.run(_yt_dlp() + ["--no-playlist", "--skip-download", "--print", "%(live_status)s\t%(title)s", url],
                          capture_output=True, text=True, encoding="utf-8", errors="ignore").stdout.strip().splitlines()
     status, _, title = (got[-1] if got else "").partition("\t")
@@ -121,7 +124,44 @@ def download_video(url, job_dir, cfg, start=None, end=None):
         msg = {"is_live": "is LIVE right now", "is_upcoming": "hasn't started yet",
                "post_live": "just ended and YouTube is still processing it"}[status]
         raise SystemExit(f"\n[!] That stream {msg}. Wait until it's a finished replay "
-                         f"(usually a few hours after it ends), or use an older stream from the Live tab.\n")
+                         f"(usually a few hours after it ends), use Record live, or use an older stream.\n")
+
+
+def download_audio(url, job_dir, start=None, end=None):
+    """Just the sound (about 60 MB an hour) - for keyword search. Uses the full video instead if it's already here."""
+    full = full_video(job_dir)
+    if full:
+        print(f"  using the video downloaded earlier ({full.stat().st_size // 1_000_000} MB)")
+        return full
+    have = [p for p in job_dir.glob("audio.*") if p.suffix in (".m4a", ".webm", ".opus", ".mp3") and p.stat().st_size > 10_000]
+    if have:
+        print("  using the sound downloaded earlier")
+        return have[0]
+    _check_live(url, job_dir)
+    cmd = _yt_dlp() + ["-f", "ba[ext=m4a]/ba", "-o", str(job_dir / "audio.%(ext)s"), "--no-playlist"]
+    if start is not None or end is not None:
+        cmd += ["--download-sections", f"*{hms(start or 0)}-{hms(end) if end else 'inf'}"]
+    print("  downloading just the sound (small)...")
+    subprocess.run(cmd + [url], check=True)
+    have = sorted(job_dir.glob("audio.*"), key=lambda p: p.stat().st_size, reverse=True)
+    if not have:
+        raise RuntimeError("yt-dlp finished but no sound file was found")
+    return have[0]
+
+
+def download_part(url, cfg, start, end, work_dir):
+    """One piece of the video (seconds start-end of the stream), for a match from a sound-only search."""
+    d = Path(work_dir) / "_downloads" / cache_key(url, round(start), round(end))
+    d.mkdir(parents=True, exist_ok=True)
+    return download_video(url, d, cfg, round(start), round(end))
+
+
+def download_video(url, job_dir, cfg, start=None, end=None):
+    done = full_video(job_dir)
+    if done:
+        print(f"  using the video downloaded earlier ({done.stat().st_size // 1_000_000} MB)")
+        return fix_sync(done, cfg)
+    _check_live(url, job_dir)
     h = int(cfg["download"]["max_height"])
     cmd = _yt_dlp() + [
         # prefer H.264 + AAC: plays smoothly in the editor and Premiere, decoded by the graphics card

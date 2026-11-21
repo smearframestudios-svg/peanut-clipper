@@ -241,6 +241,7 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
     <div class="row tiny" style="margin-top:10px;gap:18px">
       <label class="toggle"><input type="checkbox" id="kwChat" checked> Also search chat</label>
       <label class="toggle"><input type="checkbox" id="kwSimilar" checked> Match similar words (drive &rarr; driving)</label>
+      <label class="toggle" title="About 0.7 GB for 12 hours instead of ~30 GB. Video for a match is downloaded only when you use it."><input type="checkbox" id="kwSound" checked> <b>Search the sound only (small download)</b></label>
       <label class="toggle"><input type="checkbox" id="kwPart"> Only part of the stream</label>
       <span id="kwPartBox" style="display:none" class="row">from <input type="text" class="small" id="kwFrom" value="1:00:00"> to <input type="text" class="small" id="kwTo" value="2:00:00"></span>
     </div>
@@ -675,7 +676,7 @@ $('quit').onclick=async()=>{if(S&&S.job&&S.job.running&&!confirm('A job is still
 let KW=null, pendingPreview=null;
 $('kwPart').onchange=e=>$('kwPartBox').style.display=e.target.checked?'inline-flex':'none';
 $('kwGo').onclick=async()=>{const url=($('kwUrl').value||$('url').value).trim();
-  const body={kind:'search',url,words:$('kwWords').value,chat:$('kwChat').checked,exact:!$('kwSimilar').checked,layout:$('mkLayout').value};
+  const body={kind:'search',url,words:$('kwWords').value,chat:$('kwChat').checked,exact:!$('kwSimilar').checked,layout:$('mkLayout').value,sound_only:$('kwSound').checked};
   if($('kwPart').checked){body.from=$('kwFrom').value;body.to=$('kwTo').value}
   await api('/api/run',body);lastJobKey='running';poll()};
 async function loadSearches(openNewest){
@@ -687,14 +688,14 @@ $('kwPick').onchange=()=>openSearch($('kwPick').value);
 const T=t=>{t=Math.max(0,Math.floor(t));return Math.floor(t/3600)+':'+String(Math.floor(t%3600/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0')};
 async function openSearch(sid,keepPlayer){
   KW=await api('/api/search?sid='+encodeURIComponent(sid));$('kwRes').style.display='block';$('kwPick').value=sid;
-  $('kwHead').textContent=`${KW.matches.length} match${KW.matches.length===1?'':'es'} for: ${KW.queries.join(', ')}`;
+  $('kwHead').textContent=`${KW.matches.length} match${KW.matches.length===1?'':'es'} for: ${KW.queries.join(', ')}`+(KW.audio_only?' - sound only, video not downloaded yet (each match you use downloads just its part)':'');
   if(!keepPlayer){$('kwPlayer').style.display='none';$('kwVid').pause()}
   const box=$('kwList');
   if(!KW.matches.length){box.innerHTML='<div class="mute">No matches. Try fewer or shorter words, or turn on "Match similar words".</div>';return}
   box.innerHTML=KW.matches.map(m=>`<div class="mt"><div class="tm">${T(m.t+KW.offset)}</div>
     <div class="tx"><div class="chips" style="margin-bottom:4px">${m.queries.map(q=>`<span class="chip">${m.kind==='chat'?'chat: ':''}${esc(q)}</span>`).join('')}${m.made?`<span class="made">&#10003; ${m.made==='exported'?'exported':'made into a Short'}</span>`:''}</div>
     ${esc(m.text).replace(/\[\[(.+?)\]\]/g,'<mark>$1</mark>')}</div>
-    <div class="bt"><button class="btn" data-a="play" data-i="${m.i}">&#9654; Preview</button><button class="btn main" data-a="short" data-i="${m.i}">Make Short</button><button class="btn" data-a="export" data-i="${m.i}">Export for Premiere</button><button class="btn" data-a="comp" data-i="${m.i}">+ Add to compilation</button></div></div>`).join('');
+    <div class="bt"><button class="btn" data-a="play" data-i="${m.i}">&#9654; ${KW.audio_only?'Listen':'Preview'}</button><button class="btn main" data-a="short" data-i="${m.i}">Make Short</button><button class="btn" data-a="export" data-i="${m.i}">Export for Premiere</button><button class="btn" data-a="comp" data-i="${m.i}">+ Add to compilation</button></div></div>`).join('');
   box.querySelectorAll('[data-a]').forEach(b=>b.onclick=async()=>{const m=KW.matches.find(x=>x.i==b.dataset.i);
     if(b.dataset.a==='comp'){addToComp(m);return}
     if(!KW.source_available){toast('The stream for this search was deleted. Run the search again to re-download it.');return}
