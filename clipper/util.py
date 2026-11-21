@@ -27,6 +27,10 @@ DEFAULT_SETTINGS = {
     "use_gpu": True,
     "schedule_times": ["11:45", "16:30", "20:15"],
     "keep_source_days": 3,
+    "delete_exported": True,
+    "delete_exported_days": 3,
+    "delete_searches": True,
+    "search_keep_days": 14,
     "edit_window_min": 6,       # AV1 streams: minutes converted for the trim editor, centred on the Short
     "export_folder": "",
     "screenshot_folder": "",

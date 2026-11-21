@@ -268,9 +268,12 @@ def make_handler():
             if p == "/api/searches":
                 out = []
                 for f in sorted(Path(cfg["paths"]["output_dir"]).glob("*/search.json"), reverse=True)[:15]:
-                    d = load_json(f)
-                    out.append({"sid": d["sid"], "words": d["words"], "count": len(d["matches"]),
-                                "created": d["created"], "source": d["source"]})
+                    d = load_json(f) or {}
+                    try:                          # a damaged search file shouldn't hide the others
+                        out.append({"sid": d["sid"], "words": d["words"], "count": len(d["matches"]),
+                                    "created": d["created"], "source": d["source"]})
+                    except (KeyError, TypeError):
+                        continue
                 return self._send(200, out)
             if p == "/api/search":
                 from urllib.parse import parse_qs
@@ -295,6 +298,9 @@ def make_handler():
             if p == "/api/live":
                 from . import live
                 return self._send(200, live.state())
+            if p == "/api/storage":
+                from . import storage
+                return self._send(200, storage.scan(cfg))
             if p == "/api/history":
                 return self._send(200, library.history(cfg))
             if p.startswith("/history_thumb/"):
@@ -562,6 +568,17 @@ def make_handler():
                     out.write_bytes(titlecard.png_bytes(spec, 1.0))
                     return self._send(200, {"ok": True, "name": out.name, "folder": str(folder)})
                 return self._send(404, {"error": "unknown"})
+            if p == "/api/storage/delete":
+                from . import storage
+                try:
+                    ok = storage.delete_item(cfg, body.get("item") or {})
+                except SystemExit as e:
+                    return self._send(400, {"error": str(e).replace("[!] ", "")})
+                return self._send(200 if ok else 400, {"ok": ok} if ok else {"error": "That can't be deleted from here."})
+            if p == "/api/storage/clean":
+                from . import storage
+                n, freed = storage.auto_clean(cfg)
+                return self._send(200, {"count": n, "freed": freed})
             if p == "/api/pick_folder":       # the normal Windows folder picker, on top of the browser
                 return self._send(200, {"path": pick_folder(body.get("start") or "", body.get("title") or "Pick a folder")})
             if p == "/api/open_folder":

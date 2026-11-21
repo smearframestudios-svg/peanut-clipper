@@ -37,6 +37,13 @@ def run_auto(cfg):
     from . import pipeline
     st = cfg["settings"]
     _log("auto mode started")
+    try:                                     # tidy up first - it may free the space this run needs
+        from .storage import auto_clean
+        n, freed = auto_clean(cfg)
+        if n:
+            _log(f"auto-delete: removed {n} item(s), freed {freed / 1e9:.1f} GB")
+    except Exception as e:  # noqa: BLE001
+        _log(f"auto-delete skipped: {e}")
     free_gb = shutil.disk_usage(ROOT).free / 1e9
     if free_gb < MIN_FREE_GB:
         _log(f"skipped: only {free_gb:.0f} GB free (need {MIN_FREE_GB} GB for a full stream)")

@@ -156,6 +156,10 @@ a{color:var(--blue)}
 .tc-stage.chk{background:repeating-conic-gradient(#2a2c31 0 25%,#1f2125 0 50%) 0 0/22px 22px}
 .tc-stage img,.tc-stage canvas{position:absolute;inset:0;width:100%;height:100%}
 .tc-busy{position:absolute;right:8px;top:8px;font-size:11px;color:var(--mute);background:#000a;padding:2px 8px;border-radius:99px;display:none}
+.st-bar{display:flex;height:16px;border-radius:99px;overflow:hidden;margin:12px 0 6px;background:var(--panel2)}
+.st-bar span{display:block;height:100%}
+.st-item{display:grid;grid-template-columns:minmax(0,1fr) 90px 80px;gap:10px;align-items:center;background:var(--panel2);border-radius:8px;padding:8px 10px;margin-top:6px}
+.st-item .sz{font:700 13px Consolas,monospace;color:var(--acc);text-align:right}.st-item .btn{padding:5px 10px;font-size:12px}
 .ed-foot{display:flex;align-items:center;gap:12px;margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
 .ov{display:flex;align-items:center;gap:12px;background:var(--panel2);border-radius:10px;padding:10px;margin-bottom:8px}
 .ov img{width:54px;height:96px;object-fit:contain;background:repeating-conic-gradient(#333 0 25%,#222 0 50%) 0 0/12px 12px;border-radius:6px}
@@ -431,12 +435,23 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
       <label class="k">Frame rate of the app's Shorts</label><select id="s_output_fps"><option value="60">60 fps</option><option value="30">30 fps</option></select>
     </div>
   </div>
+  <div class="card" id="storageCard"><div class="row"><h3 style="margin:0">Storage</h3><span class="tiny mute" id="stRoot"></span>
+      <span style="margin-left:auto" class="row"><b id="stTotal" style="font:700 18px Consolas,monospace;color:var(--acc)"></b><span class="tiny mute" id="stFree"></span>
+      <button class="btn" id="stRefresh" style="padding:6px 10px">Refresh</button></span></div>
+    <div class="st-bar" id="stBar"></div><div class="row tiny mute" id="stLegend"></div>
+    <div style="margin-top:12px"><b>Biggest items</b></div><div id="stItems"><div class="tiny mute">Open Settings to see what's using space.</div></div>
+    <div class="row" style="margin-top:12px"><button class="btn main" id="stClean">Clean up now</button>
+      <span class="tiny mute">Deletes everything the Auto-delete rules below allow (you see the list first). Never touches Exports or Compilations.</span></div>
+  </div>
   <div class="card"><h3>Auto-delete</h3>
     <div class="set">
-      <label class="k">Downloaded streams</label><label class="toggle"><input type="checkbox" id="s_delete_source"> Delete once every Short from it is rejected, uploaded or exported</label>
-      <label class="k">...or after this many days</label><div><input type="number" min="1" max="30" class="small" id="s_keep_source_days"> <span class="tiny mute">the full stream is kept until then so you can re-cut Shorts</span></div>
+      <label class="k">Downloaded streams</label><label class="toggle"><input type="checkbox" id="s_delete_source"> Delete once every Short from it is done</label>
+      <label class="k">...or after this many days</label><div><input type="number" min="1" max="30" class="small" id="s_keep_source_days"> <span class="tiny mute">also downloads with no Shorts, unused live recordings and stream parts</span></div>
+      <label class="k">Shorts exported to Premiere</label><div><label class="toggle"><input type="checkbox" id="s_delete_exported"> Delete the app's copy after</label> <input type="number" min="0" max="60" class="small" id="s_delete_exported_days"> <span class="tiny mute">days - your Premiere export stays</span></div>
+      <label class="k">Keyword searches</label><div><label class="toggle"><input type="checkbox" id="s_delete_searches"> Remove after</label> <input type="number" min="1" max="90" class="small" id="s_search_keep_days"> <span class="tiny mute">days - History and compilations keep their own copies</span></div>
       <label class="k">Rejected Shorts</label><label class="toggle"><input type="checkbox" id="s_delete_rejected"> Delete when I click Reject</label>
-      <label class="k">Uploaded Shorts</label><label class="toggle"><input type="checkbox" id="s_delete_uploaded"> Delete once they're on YouTube</label>
+      <label class="k">Uploaded Shorts</label><label class="toggle"><input type="checkbox" id="s_delete_uploaded"> Delete once they're on YouTube (and once exported to Premiere)</label>
+      <div></div><div class="tiny mute">Shorts still in Review or Approved are never deleted automatically. Auto-delete runs when the app opens, after Reject / upload / export, and every night.</div>
     </div>
   </div>
   <div class="card"><h3>Trim editor</h3>
@@ -589,7 +604,7 @@ async function api(path,body){
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>show(b.dataset.t));
 function show(t){document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x.dataset.t===t));
   document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id===t));
-  if(t==='review')loadClips(); if(t==='comps')loadComps(); if(t==='cols')loadCols(); if(t==='history')loadHistory(); if(t==='titles')loadTitles(); if(t==='upload')loadPlan(); if(t==='settings')fillSettings(); if(t==='layout')initLayout();}
+  if(t==='review')loadClips(); if(t==='comps')loadComps(); if(t==='cols')loadCols(); if(t==='history')loadHistory(); if(t==='titles')loadTitles(); if(t==='settings')loadStorage(); if(t==='upload')loadPlan(); if(t==='settings')fillSettings(); if(t==='layout')initLayout();}
 
 // ---------- state polling ----------
 let down=0, quitting=false, reloadWhenBack=false;
@@ -917,6 +932,32 @@ $('tcSave').onclick=async()=>{try{const r=await api('/api/titlecard/save',{spec:
 $('tcCopy').onclick=async()=>{try{const b=await (await fetch($('tcImg').src)).blob();await navigator.clipboard.write([new ClipboardItem({'image/png':b})]);
   toast('<b>Copied</b> - paste it where you need it (this copy is preview size; use Save for the full 1080x1920 picture).')}catch(e){toast('Copying pictures isn\'t allowed here - use Save PNG instead.')}};
 
+// ---------- storage (Settings) ----------
+const GBs=b=>b>=1e9?(b/1e9).toFixed(b>=1e11?0:1)+' GB':b>=1e6?Math.round(b/1e6)+' MB':Math.round(b/1e3)+' KB';
+const ST_COL={downloads:'#e5484d',shorts:'#ffc93c',exports:'#3fa9ff',compilations:'#2fb36d'};
+let STO=null;
+async function loadStorage(){$('stItems').innerHTML='<div class="tiny mute">Measuring...</div>';STO=await api('/api/storage');
+  $('stRoot').textContent='Peanut Clipper folder: '+STO.root;$('stTotal').textContent=GBs(STO.total);
+  $('stFree').textContent=`used - ${GBs(STO.free)} free on ${STO.drive}`;
+  const tot=Math.max(1,STO.total);
+  $('stBar').innerHTML=STO.areas.map(a=>`<span style="width:${a.size/tot*100}%;background:${ST_COL[a.key]}" title="${esc(a.name)} ${GBs(a.size)}"></span>`).join('');
+  $('stLegend').innerHTML=STO.areas.map(a=>`<span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${ST_COL[a.key]};margin-right:4px"></span>${esc(a.name)} ${GBs(a.size)} <button class="link" onclick="api('/api/open_folder',{path:${esc(JSON.stringify(a.path)).replace(/'/g,'&#39;')}})">open</button></span>`).join(' &nbsp; ');
+  const items=STO.items.filter(i=>i.size>0);
+  $('stItems').innerHTML=items.length?items.map((it,k)=>`<div class="st-item"><span><b>${esc(it.name)}</b> <span class="tiny mute">- ${esc(it.date)}${it.note?', '+esc(it.note):''}${it.busy?' (recording now)':''}</span></span>
+    <span class="sz">${GBs(it.size)}</span>${it.busy?'<span></span>':`<button class="btn no" data-del="${k}">Delete</button>`}</div>`).join('')
+    :'<div class="tiny mute">Nothing big in here.</div>';
+  $('stItems').querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const it=items[+b.dataset.del];
+    const warn=it.waiting||/still in Review/.test(it.note||'')?'\n\nSome Shorts from it are still waiting in Review or Approved - they won\'t be re-cuttable after this.':'';
+    if(!confirm(`Delete ${it.name} (${GBs(it.size)})?${warn}`))return;
+    try{await api('/api/storage/delete',{item:it});toast(`<b>Deleted:</b> ${esc(it.name)} - freed ${GBs(it.size)}`);loadStorage();if(typeof loadClips==='function')loadClips()}catch(e){}})}
+$('stRefresh').onclick=loadStorage;
+$('stClean').onclick=async()=>{const s=await api('/api/storage');const p=s.plan;
+  if(!p.length){toast('Nothing to clean up right now - everything is within your Auto-delete rules.');return}
+  const sum=p.reduce((a,i)=>a+i.size,0);
+  const list=p.slice(0,15).map(i=>`- ${i.name} (${GBs(i.size)}) - ${i.why}`).join('\n')+(p.length>15?`\n...and ${p.length-15} more`:'');
+  if(!confirm(`Clean up ${p.length} item${p.length===1?'':'s'} and free about ${GBs(sum)}?\n\n${list}`))return;
+  const r=await api('/api/storage/clean',{});toast(`<b>Cleaned up:</b> ${r.count} item${r.count===1?'':'s'}, freed ${GBs(r.freed)}`);loadStorage()};
+
 // ---------- record live ----------
 let LV={};
 const gb=b=>b>=1e9?(b/1e9).toFixed(1)+' GB':Math.round(b/1e6)+' MB';
@@ -1094,7 +1135,7 @@ $('goExportAll').onclick=async()=>{const r=await api('/api/run',{kind:'export'})
 $('goUpload').onclick=async()=>{await api('/api/run',{kind:'upload'});lastJobKey='running';show('make');poll()};
 
 // ---------- settings ----------
-const keys=['saved_keywords','saved_keywords_max','search_lead_sec','search_tail_sec','keep_source_days','edit_window_min','export_folder','screenshot_folder','export_handles_sec','export_vertical_too','output_fps','auto_enabled','auto_time','channel_url','auto_twitch_clips','shorts_per_stream','captions','delete_source','delete_rejected','delete_uploaded','use_gpu','twitch_client_id','twitch_client_secret','schedule_times'];
+const keys=['saved_keywords','saved_keywords_max','search_lead_sec','search_tail_sec','keep_source_days','delete_exported','delete_exported_days','delete_searches','search_keep_days','edit_window_min','export_folder','screenshot_folder','export_handles_sec','export_vertical_too','output_fps','auto_enabled','auto_time','channel_url','auto_twitch_clips','shorts_per_stream','captions','delete_source','delete_rejected','delete_uploaded','use_gpu','twitch_client_id','twitch_client_secret','schedule_times'];
 async function fillSettings(){
   if(!S)await poll();const st=S.settings;
   for(const k of keys){const el=$('s_'+k);if(!el)continue;

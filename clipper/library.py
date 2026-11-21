@@ -154,7 +154,16 @@ def _delete_source(data):
 
 
 def cleanup_sources(cfg):
-    """Delete a downloaded stream once all its Shorts are decided, or after N days."""
+    """Auto-delete (Settings -> Auto-delete) - see storage.py for the rules."""
+    from .storage import auto_clean
+    try:
+        auto_clean(cfg)
+    except Exception as e:  # noqa: BLE001  cleaning up must never break Reject / upload / start-up
+        print(f"  [!] auto-delete skipped: {e}")
+
+
+def _old_cleanup_sources(cfg):
+    """(Before 1.12) Delete a downloaded stream once all its Shorts are decided, or after N days."""
     st = cfg["settings"]
     if not st["delete_source"]:
         return

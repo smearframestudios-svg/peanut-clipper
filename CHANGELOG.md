@@ -1,5 +1,12 @@
 # What's new
 
+## 1.12.0
+- Storage: Settings now shows how much space Peanut Clipper uses (downloads, the app's Shorts, exports, compilations), how much is free, and the biggest items - each with its own Delete button.
+- Clean up now: deletes everything your Auto-delete rules allow, after showing you the list.
+- Auto-delete fixed: downloads that no Short was ever made from (cancelled runs, unused live recordings, stream parts) now get deleted after your "after this many days" setting too. Before, they stayed forever.
+- New rules: the app's copy of Shorts exported to Premiere (after 3 days, if "Delete once they're on YouTube" is off) and old keyword searches (after 14 days). Shorts still waiting in Review or Approved are never deleted.
+- Auto-delete now also runs every night with the nightly auto mode, before it downloads anything.
+
 ## 1.11.0
 - Sound-only keyword search: a new box on keyword search (on by default) downloads just the sound and chat - about 0.7 GB for a 12-hour stream instead of ~30 GB - and finds your words much faster.
 - Video only when you use it: Make Short, Export for Premiere or Add to compilation on a match downloads just that part of the video (about 2 minutes either side, usually 10-30 seconds to get).
