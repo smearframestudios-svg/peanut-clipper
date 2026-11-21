@@ -532,6 +532,34 @@ def make_handler():
                 except Exception as e:  # noqa: BLE001
                     return self._send(500, {"error": f"Couldn't save the screenshot: {e}"})
                 return self._send(200, {"ok": True, "file": str(out), "folder": str(out.parent), "name": out.name})
+            if p.startswith("/api/titlecard/"):
+                try:
+                    from . import titlecard
+                except ImportError:
+                    return self._send(500, {"error": "Title cards need one more part installed - press Update now in the app (or run setup again)."})
+                what = p.rsplit("/", 1)[1]
+                if what == "preview":
+                    return self._send(200, titlecard.png_bytes(body.get("spec") or {}, 0.5), "image/png")
+                if what == "draft":
+                    return self._send(200, titlecard.from_title(body.get("title") or "", int(body.get("variant") or 0),
+                                                                body.get("texts")))
+                if what == "save":
+                    import re as _re
+                    st = cfg["settings"]
+                    folder = Path(st.get("title_folder") or Path(st.get("export_folder") or (ROOT / "exports")) / "Title cards")
+                    folder.mkdir(parents=True, exist_ok=True)
+                    spec = titlecard.clean(body.get("spec") or {})
+                    if not spec["lines"]:
+                        return self._send(400, {"error": "Type at least one line first."})
+                    base = _re.sub(r'[<>:"/\\|?*]+', "", " ".join(ln["text"] for ln in spec["lines"])).strip()[:70] or "Title card"
+                    out = folder / f"{base}.png"
+                    n = 2
+                    while out.exists():
+                        out = folder / f"{base} ({n}).png"
+                        n += 1
+                    out.write_bytes(titlecard.png_bytes(spec, 1.0))
+                    return self._send(200, {"ok": True, "name": out.name, "folder": str(folder)})
+                return self._send(404, {"error": "unknown"})
             if p == "/api/pick_folder":       # the normal Windows folder picker, on top of the browser
                 return self._send(200, {"path": pick_folder(body.get("start") or "", body.get("title") or "Pick a folder")})
             if p == "/api/open_folder":
@@ -548,7 +576,8 @@ def make_handler():
                 library.decide(cfg, body["job"], body["id"], body["status"], body.get("title"))
                 return self._send(200, {"ok": True})
             if p == "/api/setting":          # one quick setting (e.g. a checkbox), no side effects
-                allowed = {"live_from_start", "live_then_make", "live_in_auto", "export_folder", "screenshot_folder"}
+                allowed = {"live_from_start", "live_then_make", "live_in_auto", "export_folder", "screenshot_folder",
+                           "title_folder"}
                 save_settings({k: v for k, v in body.items() if k in allowed})
                 return self._send(200, {"ok": True})
             if p == "/api/settings":

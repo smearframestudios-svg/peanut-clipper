@@ -1,5 +1,13 @@
 # What's new
 
+## 1.10.0
+- Title Cards: a new tab that makes big outlined thumbnail-style text (white, yellow and red lines, red box, red swoosh, rough red brush) as a see-through 1080x1920 picture for the top of a Short.
+- From the Short's title: press "Title card" on any Short in Review (or pick one in the list) and it splits the title into lines and styles them for you. Change any line's words, colour, size or extra.
+- Shuffle styles: tries new colours, boxes and swooshes on your lines, keeping your words.
+- Live preview over a checkerboard or over the Short itself, with the safe zones if you want them. Top / Middle / Bottom keeps the text clear of YouTube's buttons.
+- Save PNG puts the full-size picture in your Export folder\Title cards (Change to pick another folder). Copy puts the preview on the clipboard.
+- This update installs one extra part the first time (for drawing the pictures) - it happens by itself during Update now.
+
 ## 1.9.2
 - YouTube safe zones: tick "Safe zones" on the Layouts & Banners preview, the trim editor's live preview or the framing preview to see where YouTube's Shorts buttons cover the video (top bar, the like/comment/share buttons on the right, and the avatar/subscribe/title area at the bottom). Keep faces, captions and banners inside the dashed box.
 - It's only a guide on the preview - it never shows up in your Shorts. Your choice is remembered.

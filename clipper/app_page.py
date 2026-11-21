@@ -147,6 +147,15 @@ a{color:var(--blue)}
 .colmenu button{display:block;width:100%;text-align:left;background:none;border:0;color:var(--text);padding:8px 10px;border-radius:7px;font:inherit;font-size:13px;cursor:pointer}
 .colmenu button:hover{background:var(--line)}.colmenu button.in{color:#9ee6bd}.colmenu .new{color:var(--mute)}
 .mo img.v{width:34px;height:60px}
+.tc-wrap{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
+@media(max-width:1000px){.tc-wrap{grid-template-columns:1fr}}
+.tc-line{background:var(--panel2);border-radius:10px;padding:10px;margin-bottom:8px}
+.tc-line .row{gap:6px}.tc-line input[type=text]{flex:1;min-width:160px;font-weight:800;text-transform:uppercase}
+.tc-line .seg button{padding:5px 9px;font-size:12px}.tc-line .mini{padding:5px 8px;font-size:12px}
+.tc-stage{position:relative;width:100%;aspect-ratio:9/16;border-radius:12px;overflow:hidden;background:repeating-conic-gradient(#2a2c31 0 25%,#1f2125 0 50%) 0 0/22px 22px;background-size:cover}
+.tc-stage.chk{background:repeating-conic-gradient(#2a2c31 0 25%,#1f2125 0 50%) 0 0/22px 22px}
+.tc-stage img,.tc-stage canvas{position:absolute;inset:0;width:100%;height:100%}
+.tc-busy{position:absolute;right:8px;top:8px;font-size:11px;color:var(--mute);background:#000a;padding:2px 8px;border-radius:99px;display:none}
 .ed-foot{display:flex;align-items:center;gap:12px;margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
 .ov{display:flex;align-items:center;gap:12px;background:var(--panel2);border-radius:10px;padding:10px;margin-bottom:8px}
 .ov img{width:54px;height:96px;object-fit:contain;background:repeating-conic-gradient(#333 0 25%,#222 0 50%) 0 0/12px 12px;border-radius:6px}
@@ -168,6 +177,7 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
     <button data-t="upload">Approved<span class="badge" id="nApproved"></span></button>
     <button data-t="comps">Compilations</button>
     <button data-t="cols">Collections</button>
+    <button data-t="titles">Title Cards</button>
     <button data-t="history">History</button>
     <button data-t="settings">Settings</button>
     <button data-t="layout">Layouts &amp; Banners</button>
@@ -341,6 +351,31 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
       <span class="seg" id="colNum"><button data-v="1">On</button><button data-v="0">Off</button></span></div>
     <div class="row" style="margin-top:14px"><button class="btn main" id="colExport">Export montage</button><button class="btn" id="colPrem">Export for Premiere</button>
       <span class="tiny mute">Premiere = each clip as its own file + a ready-made sequence (XML). In Premiere: File &rarr; Import &rarr; the .xml.</span></div>
+  </div>
+</section>
+
+<section id="titles">
+  <h2>Title Cards</h2><p class="sub">Big outlined text for the top of a Short, saved as a see-through picture (1080x1920 PNG) you drop on your Premiere timeline.</p>
+  <div class="tc-wrap">
+    <div>
+      <div class="card">
+        <div class="row"><select id="tcShort" style="max-width:340px"></select>
+          <button class="btn" id="tcFrom">From the Short's title</button><button class="btn" id="tcShuffle">Shuffle styles</button>
+          <button class="btn" id="tcAdd">+ Line</button><button class="btn" id="tcClear">Clear</button></div>
+        <div id="tcLines" style="margin-top:12px"></div>
+      </div>
+      <div class="card">
+        <div class="row"><span class="tiny mute" style="min-width:110px">Red brush behind the top lines</span><span class="seg" id="tcBrush"><button data-v="1">On</button><button data-v="0">Off</button></span>
+          <span class="tiny mute" style="margin-left:14px">Where</span><span class="seg" id="tcPos"><button data-v="top">Top</button><button data-v="middle">Middle</button><button data-v="bottom">Bottom</button></span></div>
+        <div class="row" style="margin-top:10px"><span class="tiny mute" style="min-width:110px">Slant</span><input type="range" id="tcSlant" min="0" max="0.15" step="0.01" style="width:180px">
+          <span class="tiny mute" style="margin-left:14px">Line spacing</span><input type="range" id="tcGap" min="-0.25" max="0.1" step="0.01" style="width:180px"></div>
+        <div class="row" style="margin-top:10px"><span class="tiny mute" style="min-width:110px">Preview behind it</span><span class="seg" id="tcBg"><button data-v="chk">Checkerboard</button><button data-v="short">The Short</button></span>
+          <label class="toggle tiny" style="margin-left:14px"><input type="checkbox" class="safeTog"> Safe zones</label></div>
+        <div class="row" style="margin-top:14px"><button class="btn main" id="tcSave">Save PNG (transparent)</button><button class="btn" id="tcCopy">Copy</button>
+          <span class="tiny mute">Saves to <span id="tcFolder"></span> &nbsp;<button class="link" onclick="pickFolder('title_folder')">Change</button> &nbsp;<button class="link" onclick="openSetFolder('title_folder')">Open</button></span></div>
+      </div>
+    </div>
+    <div><div class="tc-stage chk" id="tcStage"><img id="tcImg" alt=""><canvas id="tcSafe" width="540" height="960"></canvas><span class="tc-busy" id="tcBusy">updating...</span></div></div>
   </div>
 </section>
 
@@ -553,7 +588,7 @@ async function api(path,body){
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>show(b.dataset.t));
 function show(t){document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x.dataset.t===t));
   document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id===t));
-  if(t==='review')loadClips(); if(t==='comps')loadComps(); if(t==='cols')loadCols(); if(t==='history')loadHistory(); if(t==='upload')loadPlan(); if(t==='settings')fillSettings(); if(t==='layout')initLayout();}
+  if(t==='review')loadClips(); if(t==='comps')loadComps(); if(t==='cols')loadCols(); if(t==='history')loadHistory(); if(t==='titles')loadTitles(); if(t==='upload')loadPlan(); if(t==='settings')fillSettings(); if(t==='layout')initLayout();}
 
 // ---------- state polling ----------
 let down=0, quitting=false, reloadWhenBack=false;
@@ -791,15 +826,16 @@ document.querySelectorAll('#hFilter button').forEach(b=>b.onclick=()=>{hFilter=b
 
 // ---------- folder pickers (Settings + "Change folder" on screenshot messages) ----------
 const shotFolder=()=>S.settings.screenshot_folder||((S.settings.export_folder||S.default_export)+'\\Screenshots');
-async function pickFolder(key){const start=key==='screenshot_folder'?shotFolder():(S.settings.export_folder||S.default_export);
-  const title=key==='screenshot_folder'?'Where should screenshots go?':'Where should exports go?';
+async function pickFolder(key){const start=key==='screenshot_folder'?shotFolder():key==='title_folder'?tcTitleFolder():(S.settings.export_folder||S.default_export);
+  const title=key==='screenshot_folder'?'Where should screenshots go?':key==='title_folder'?'Where should title cards go?':'Where should exports go?';
   toast('Pick a folder in the window that just opened (it may be behind this one).');
   const r=await api('/api/pick_folder',{start,title}).catch(()=>null);
   if(!r||!r.path){toast('No folder picked - nothing changed.');return}
   S.settings[key]=r.path;const inp=$('s_'+key);if(inp)inp.value=r.path;await api('/api/setting',{[key]:r.path});
-  toast(`<b>${key==='screenshot_folder'?'Screenshots':'Exports'} now go to:</b><br><span class="tiny">${esc(r.path)}</span>`);
+  toast(`<b>${key==='screenshot_folder'?'Screenshots':key==='title_folder'?'Title cards':'Exports'} now go to:</b><br><span class="tiny">${esc(r.path)}</span>`);
+  if($('tcFolder'))$('tcFolder').textContent=tcTitleFolder();
   if($('expFolder'))$('expFolder').textContent=S.settings.export_folder||S.default_export}
-function openSetFolder(key){const v=($('s_'+key)&&$('s_'+key).value.trim())||(key==='screenshot_folder'?shotFolder():(S.settings.export_folder||S.default_export));
+function openSetFolder(key){const v=($('s_'+key)&&$('s_'+key).value.trim())||(key==='screenshot_folder'?shotFolder():key==='title_folder'?tcTitleFolder():(S.settings.export_folder||S.default_export));
   api('/api/open_folder',{path:v})}
 
 // ---------- YouTube Shorts safe zones (on every 9:16 preview) ----------
@@ -821,6 +857,64 @@ function safeZones(c){const x=c.getContext('2d'),W=c.width,H=c.height,k=W/1080,
 document.querySelectorAll('.safeTog').forEach(t=>{t.checked=SAFE;t.onchange=()=>{SAFE=t.checked;try{localStorage.setItem('pc_safe',SAFE?'1':'0')}catch(e){}
   document.querySelectorAll('.safeTog').forEach(o=>o.checked=SAFE);
   try{drawCal()}catch(e){}try{if(E){liveDraw();frDraw()}}catch(e){}}});
+
+// ---------- title cards ----------
+let TC=null,tcTimer=null,tcReq=0,tcVariant=0,tcShorts=[],tcUrl=null;
+const tcTitleFolder=()=>S.settings.title_folder||((S.settings.export_folder||S.default_export)+'\\Title cards');
+try{TC=JSON.parse(localStorage.getItem('pc_tc')||'null')}catch(e){}
+function tcSaveLocal(){try{localStorage.setItem('pc_tc',JSON.stringify(TC))}catch(e){}}
+async function loadTitles(pick){const [rev,apv]=await Promise.all([api('/api/clips'),api('/api/plan').catch(()=>[])]);
+  tcShorts=rev.map(c=>({job:c.job,id:c.id,title:c.title,poster:`/media/${c.job}/${c.poster}`,where:'Review'}))
+    .concat((apv||[]).map(p=>({job:p.job,id:p.id,title:p.title,poster:p.poster,where:'Approved'})));
+  $('tcShort').innerHTML='<option value="">Pick a Short (optional)</option>'+tcShorts.map((c,i)=>`<option value="${i}">${esc(c.where)}: ${esc(c.title)}</option>`).join('');
+  if(pick){const i=tcShorts.findIndex(c=>c.job===pick.job&&c.id===pick.id);if(i>=0)$('tcShort').value=String(i)}
+  $('tcFolder').textContent=tcTitleFolder();
+  if(!TC){TC=await api('/api/titlecard/draft',{title:'Peanut was not ready for this GTA 6 mission!',variant:0})}
+  if(pick){tcVariant=0;TC=await api('/api/titlecard/draft',{title:pick.title,variant:0})}
+  tcBg();tcDraw()}
+function openTitles(c){show('titles');loadTitles(c)}
+function tcBg(){const st=$('tcStage'),i=$('tcShort').value,s=tcShorts[+i],useShort=(TC.bg||'chk')==='short'&&s;
+  st.classList.toggle('chk',!useShort);st.style.backgroundImage=useShort?`url("${s.poster}")`:'';
+  document.querySelectorAll('#tcBg button').forEach(b=>b.classList.toggle('on',b.dataset.v===(TC.bg||'chk')))}
+function tcDraw(){const box=$('tcLines');
+  box.innerHTML=TC.lines.map((l,i)=>`<div class="tc-line" data-i="${i}"><div class="row">
+    <input type="text" value="${esc(l.text)}" maxlength="40" data-k="text">
+    <span class="seg">${['white','yellow','red'].map(v=>`<button data-k="color" data-v="${v}" class="${l.color===v?'on':''}">${v[0].toUpperCase()+v.slice(1)}</button>`).join('')}</span>
+    <button class="btn mini" data-mv="-1" title="Move up">&uarr;</button><button class="btn mini" data-mv="1" title="Move down">&darr;</button><button class="btn mini no" data-rm="1" title="Remove">&times;</button></div>
+    <div class="row" style="margin-top:6px"><span class="tiny mute">Size</span><span class="seg">${['S','M','L'].map(v=>`<button data-k="size" data-v="${v}" class="${l.size===v?'on':''}">${v}</button>`).join('')}</span>
+    <span class="tiny mute" style="margin-left:8px">Extra</span><span class="seg">${[['none','None'],['box','Red box'],['swoosh','Swoosh']].map(([v,n])=>`<button data-k="extra" data-v="${v}" class="${l.extra===v?'on':''}">${n}</button>`).join('')}</span></div></div>`).join('')
+    ||'<div class="empty">No lines yet - press <b>+ Line</b> or <b>From the Short\'s title</b>.</div>';
+  box.querySelectorAll('.tc-line').forEach(row=>{const i=+row.dataset.i;
+    row.querySelector('input').oninput=e=>{TC.lines[i].text=e.target.value;tcRender()};
+    row.querySelectorAll('[data-k][data-v]').forEach(b=>b.onclick=()=>{TC.lines[i][b.dataset.k]=b.dataset.v;tcDraw()});
+    row.querySelectorAll('[data-mv]').forEach(b=>b.onclick=()=>{const j=i+(+b.dataset.mv);if(j<0||j>=TC.lines.length)return;[TC.lines[i],TC.lines[j]]=[TC.lines[j],TC.lines[i]];tcDraw()});
+    row.querySelector('[data-rm]').onclick=()=>{TC.lines.splice(i,1);tcDraw()}});
+  document.querySelectorAll('#tcBrush button').forEach(b=>b.classList.toggle('on',b.dataset.v===(TC.brush?'1':'0')));
+  document.querySelectorAll('#tcPos button').forEach(b=>b.classList.toggle('on',b.dataset.v===(TC.position||'middle')));
+  $('tcSlant').value=TC.slant??0.05;$('tcGap').value=TC.gap??-0.1;$('tcAdd').disabled=TC.lines.length>=8;tcRender()}
+function tcRender(){tcSaveLocal();clearTimeout(tcTimer);$('tcBusy').style.display='block';tcTimer=setTimeout(async()=>{const n=++tcReq;
+  try{const r=await fetch('/api/titlecard/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({spec:TC})});
+    if(!r.ok){const e=await r.json().catch(()=>({}));toast(esc(e.error||'Couldn\'t draw the preview.'));return}
+    const b=await r.blob();if(n!==tcReq)return;if(tcUrl)URL.revokeObjectURL(tcUrl);tcUrl=URL.createObjectURL(b);$('tcImg').src=tcUrl}
+  catch(e){}finally{if(n===tcReq)$('tcBusy').style.display='none'}},250);tcSafe()}
+function tcSafe(){const c=$('tcSafe');c.getContext('2d').clearRect(0,0,c.width,c.height);if(SAFE)safeZones(c)}
+document.querySelectorAll('.safeTog').forEach(t=>t.addEventListener('change',tcSafe));
+$('tcFrom').onclick=async()=>{const s=tcShorts[+$('tcShort').value];if(!s){toast('Pick a Short in the list first.');return}
+  tcVariant=0;const bg=TC.bg;TC=await api('/api/titlecard/draft',{title:s.title,variant:0});TC.bg=bg;tcDraw()};
+$('tcShuffle').onclick=async()=>{const texts=TC.lines.map(l=>l.text).filter(t=>t.trim());if(!texts.length)return;   // keeps your words, new colours/extras
+  tcVariant++;const bg=TC.bg,pos=TC.position,slant=TC.slant,gap=TC.gap;TC=await api('/api/titlecard/draft',{title:'',variant:tcVariant,texts});
+  Object.assign(TC,{bg,position:pos,slant,gap});tcDraw()};
+$('tcAdd').onclick=()=>{TC.lines.push({text:'NEW LINE',color:'white',size:'L',extra:'none'});tcDraw();const ins=$('tcLines').querySelectorAll('input');const last=ins[ins.length-1];last.focus();last.select()};
+$('tcClear').onclick=()=>{if(confirm('Remove every line?')){TC.lines=[];tcDraw()}};
+$('tcShort').onchange=()=>tcBg();
+document.querySelectorAll('#tcBrush button').forEach(b=>b.onclick=()=>{TC.brush=b.dataset.v==='1';tcDraw()});
+document.querySelectorAll('#tcPos button').forEach(b=>b.onclick=()=>{TC.position=b.dataset.v;tcDraw()});
+document.querySelectorAll('#tcBg button').forEach(b=>b.onclick=()=>{TC.bg=b.dataset.v;if(b.dataset.v==='short'&&!tcShorts[+$('tcShort').value])toast('Pick a Short in the list to see it behind the text.');tcBg();tcSaveLocal()});
+$('tcSlant').oninput=()=>{TC.slant=+$('tcSlant').value;tcRender()};$('tcGap').oninput=()=>{TC.gap=+$('tcGap').value;tcRender()};
+$('tcSave').onclick=async()=>{try{const r=await api('/api/titlecard/save',{spec:TC});
+  toast(`<b>Title card saved:</b> ${esc(r.name)}<br><span class="tiny mute">${esc(r.folder)}</span><br><button class="link" onclick="api('/api/open_folder',{path:${esc(JSON.stringify(r.folder)).replace(/'/g,'&#39;')}})">Open the folder</button> &nbsp; <button class="link" onclick="pickFolder('title_folder')">Change folder</button>`)}catch(e){}};
+$('tcCopy').onclick=async()=>{try{const b=await (await fetch($('tcImg').src)).blob();await navigator.clipboard.write([new ClipboardItem({'image/png':b})]);
+  toast('<b>Copied</b> - paste it where you need it (this copy is preview size; use Save for the full 1080x1920 picture).')}catch(e){toast('Copying pictures isn\'t allowed here - use Save PNG instead.')}};
 
 // ---------- record live ----------
 let LV={};
@@ -969,7 +1063,7 @@ async function loadClips(){
       <div class="b"><input type="text" value="${esc(c.title)}">
       <div class="chips"><span class="chip s">score ${c.score}</span><span class="chip">${c.length}s</span>${c.reasons.map(r=>`<span class="chip">${esc(r)}</span>`).join('')}</div>
       ${streamLine(c)}
-      <div class="act"><button class="btn ed">&#9986; Edit</button><button class="btn ok">Approve</button><button class="btn no">Reject</button>${colButton(c)}</div></div>`;
+      <div class="act"><button class="btn ed">&#9986; Edit</button><button class="btn ok">Approve</button><button class="btn no">Reject</button>${colButton(c)}<button class="btn tcbtn" style="flex-basis:100%">Title card</button></div></div>`;
     const send=async st=>{await api('/api/decide',{job:c.job,id:c.id,status:st,title:el.querySelector('input').value});el.remove();poll();
       if(!grid.querySelector('.clip'))grid.innerHTML='<div class="empty" style="grid-column:1/-1">All done. Head to Upload to schedule the approved ones.</div>'};
     el.querySelector('.ok').onclick=()=>send('approved');el.querySelector('.no').onclick=()=>send('rejected');
@@ -977,6 +1071,7 @@ async function loadClips(){
     grid.appendChild(el);
   }
   markCols();
+  grid.querySelectorAll('.clip').forEach((el,k)=>{const b=el.querySelector('.tcbtn');if(b)b.onclick=()=>openTitles(data[k])});
 }
 
 // ---------- upload ----------

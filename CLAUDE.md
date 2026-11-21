@@ -27,6 +27,7 @@ overlays/, client_secret.json, token.json, hardware.json, processed.json, logs),
   cached transcript + chat, Shorts/exports from matches, saved keywords), `library.py` (review state, re-cut, sections, screenshots, Premiere export,
   auto-delete, stream_info = a Short's time/link in the stream, permanent History in data/history.json + data/history/ thumbs), `compile.py` (compilations: moments copied out of searches, 16:9 export, Premiere XML; collections = same store with
   kind "collection": Review Shorts copied in (vfile + horizontal file with handles), vertical or horizontal montage),
+  `titlecard.py` (Title Cards tab: Pillow renderer, bundled clipper/fonts/BarlowCondensed-BlackItalic.ttf (OFL), /api/titlecard/preview|draft|save),
   `live.py` (Record live: separate background process, state in data/live.json + heartbeat, stop via data/live.stop;
   saves to work/_downloads/<id>/source.mp4 + chat.live_chat.json so every other feature just works), `upload.py` (YouTube API), `auto.py` (nightly scheduled task), `updater.py`, `setup_app.py`.
 - Progress lines printed as `@@ <pct> <label>` drive the progress bar.

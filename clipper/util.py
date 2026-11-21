@@ -30,6 +30,7 @@ DEFAULT_SETTINGS = {
     "edit_window_min": 6,       # AV1 streams: minutes converted for the trim editor, centred on the Short
     "export_folder": "",
     "screenshot_folder": "",
+    "title_folder": "",
     "export_handles_sec": 3,
     "export_vertical_too": False,
     "output_fps": 60,
