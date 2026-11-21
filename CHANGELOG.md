@@ -1,5 +1,9 @@
 # What's new
 
+## 1.9.2
+- YouTube safe zones: tick "Safe zones" on the Layouts & Banners preview, the trim editor's live preview or the framing preview to see where YouTube's Shorts buttons cover the video (top bar, the like/comment/share buttons on the right, and the avatar/subscribe/title area at the bottom). Keep faces, captions and banners inside the dashed box.
+- It's only a guide on the preview - it never shows up in your Shorts. Your choice is remembered.
+
 ## 1.9.1
 - Screenshot folder: pick where screenshots go in Settings (Premiere export section). Leave it empty to keep using your Export folder\Screenshots.
 - Browse buttons: the Export folder and the Screenshot folder each have Browse... (the normal Windows folder picker) and Open.

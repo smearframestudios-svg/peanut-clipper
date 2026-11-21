@@ -450,6 +450,7 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
           <label class="tiny mute">Zoom <input type="range" id="zoom" min="5" max="100" step="1" style="width:100%"></label>
         </div>
         <label class="tiny mute" id="thWrap">Peanut panel height <input type="range" id="th" min="480" max="1300" step="10" style="width:100%"></label>
+        <label class="toggle tiny"><input type="checkbox" class="safeTog"> Show YouTube safe zones (where the Shorts buttons cover the video)</label>
         <canvas id="prev" width="540" height="960"></canvas>
         <div><div class="tiny mute" style="margin-bottom:4px">Banners on this layout</div><div id="lyBanners" class="tiny"></div></div>
         <span id="layMsg" class="tiny mute"></span>
@@ -514,14 +515,16 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
                 <p class="tiny mute" style="margin:4px 0 0"><b>Move:</b> drag inside the box. <b>Redraw:</b> drag on the frame. The frame is wherever the stream video above is paused.</p></div>
               <label class="tiny mute" id="frZoomWrap"><b>Zoom:</b> smaller box = closer in <input type="range" id="frZoom" min="5" max="100" step="1" style="width:100%"></label>
               <label class="tiny mute" id="frThWrap"><b>Peanut area height:</b> <span id="frThV"></span> <input type="range" id="frTh" min="480" max="1300" step="10" style="width:100%"></label>
-              <div class="fr-prev"><canvas id="frPrev" width="270" height="480"></canvas></div>
+              <div class="fr-prev"><canvas id="frPrev" width="270" height="480"></canvas>
+                <label class="toggle tiny" style="margin-top:6px"><input type="checkbox" class="safeTog"> Safe zones</label></div>
               <div class="row"><button class="btn main" id="frUse">Use for this Short</button><button class="btn" id="frSaveLy">Save as new layout</button><button class="btn" id="frReset">Reset to layout</button></div>
             </div>
           </div>
         </div>
       </div>
     </div>
-    <div class="ed-side"><div class="tiny mute" style="margin-bottom:6px">Live preview <span id="liveWhat"></span></div><canvas class="live" id="live" width="540" height="960"></canvas>
+    <div class="ed-side"><div class="tiny mute" style="margin-bottom:6px">Live preview <span id="liveWhat"></span></div>
+      <label class="toggle tiny" style="margin-bottom:6px"><input type="checkbox" class="safeTog"> Safe zones</label><canvas class="live" id="live" width="540" height="960"></canvas>
       <button class="btn" id="shotShort">&#128247; Screenshot (Short) <span class="tiny mute">Ctrl+Shift+E</span></button>
       <button class="btn" id="shotStream">&#128247; Screenshot (full stream frame)</button>
       <div class="tiny mute" style="margin:14px 0 6px">Current Short</div><video id="edShort" controls preload="none"></video></div>
@@ -535,6 +538,7 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
 <div class="cover" id="cover"><div class="spin"></div><h2 id="coverT">Updating...</h2><div class="mute" id="coverM"></div></div>
 
 <script>
+const SAFE_M={top:300,bottom:480,right:165,left:65};let SAFE=false;try{SAFE=localStorage.getItem('pc_safe')==='1'}catch(e){}
 const $=id=>document.getElementById(id);
 let S=null, lastJobKey=null, logOpen=false;
 function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
@@ -797,6 +801,26 @@ async function pickFolder(key){const start=key==='screenshot_folder'?shotFolder(
   if($('expFolder'))$('expFolder').textContent=S.settings.export_folder||S.default_export}
 function openSetFolder(key){const v=($('s_'+key)&&$('s_'+key).value.trim())||(key==='screenshot_folder'?shotFolder():(S.settings.export_folder||S.default_export));
   api('/api/open_folder',{path:v})}
+
+// ---------- YouTube Shorts safe zones (on every 9:16 preview) ----------
+// On a 1080x1920 Short: top ~300 px (search/sound/menu), bottom ~480 px (avatar, subscribe, title, audio),
+// right ~165 px (like/comment/share), left ~65 px are covered or crowded. The rest is safe for faces and text.
+function safeZones(c){const x=c.getContext('2d'),W=c.width,H=c.height,k=W/1080,
+  t=SAFE_M.top*k,b=SAFE_M.bottom*k,r=SAFE_M.right*k,l=SAFE_M.left*k;
+  x.save();x.fillStyle='rgba(216,90,48,0.38)';
+  x.fillRect(0,0,W,t);x.fillRect(0,H-b,W,b);x.fillRect(0,t,l,H-t-b);x.fillRect(W-r,t,r,H-t-b);
+  x.strokeStyle='#5DCAA5';x.lineWidth=Math.max(1.5,3*k);x.setLineDash([10*k+4,6*k+3]);x.strokeRect(l,t,W-l-r,H-t-b);x.setLineDash([]);
+  x.fillStyle='rgba(255,255,255,0.55)';                       // where YouTube's buttons sit
+  for(let i=0;i<5;i++){x.beginPath();x.arc(W-r/2,t+(H-t-b)*0.45+i*(H-t-b)*0.12,Math.max(3,26*k),0,7);x.fill()}
+  [W-60*k,W-130*k,W-200*k].forEach(cx=>{x.beginPath();x.arc(cx,t*0.45,Math.max(2.5,18*k),0,7);x.fill()});
+  x.beginPath();x.arc(l+40*k,H-b+90*k,Math.max(3,30*k),0,7);x.fill();
+  x.fillRect(l+90*k,H-b+80*k,260*k,18*k);x.fillRect(l,H-b+170*k,640*k,18*k);x.fillRect(l,H-b+230*k,420*k,18*k);
+  if(W>=400){x.font=`600 ${Math.round(26*k*1.4)}px Segoe UI, sans-serif`;x.textAlign='center';x.fillStyle='#fff';
+    x.shadowColor='#000';x.shadowBlur=6;x.fillText('Safe zone',l+(W-l-r)/2,t+26*k*1.6)}
+  x.restore()}
+document.querySelectorAll('.safeTog').forEach(t=>{t.checked=SAFE;t.onchange=()=>{SAFE=t.checked;try{localStorage.setItem('pc_safe',SAFE?'1':'0')}catch(e){}
+  document.querySelectorAll('.safeTog').forEach(o=>o.checked=SAFE);
+  try{drawCal()}catch(e){}try{if(E){liveDraw();frDraw()}}catch(e){}}});
 
 // ---------- record live ----------
 let LV={};
@@ -1071,6 +1095,7 @@ function drawCal(){
     if(o.position==='full'){x.drawImage(im,0,0,540,960);continue}
     const h=540*im.naturalHeight/im.naturalWidth,off=(o.offset||0)/2;
     x.drawImage(im,0,(o.position==='top'?0:o.position==='bottom'?960-h:seam-h/2)+off,540,h)}
+  if(SAFE)safeZones($('prev'));
 }
 $('cimg').onload=()=>drawCal();
 let drag=null;const stage=$('stage');
@@ -1263,7 +1288,8 @@ $('secBoxReset').onclick=()=>{const p=pieces()[secSel];if(p)secBoxSet(null,true)
 $('secBoxAll').onclick=()=>{const ps=pieces(),p=ps[secSel];if(!p)return;const b=clone(pBox(p));ps.forEach(q=>{if(q.look===p.look)q.box=clone(b)});secSet(ps);toast('<b>Done:</b> every '+LOOKNAME[p.look].toLowerCase()+' part uses this area.')};
 
 // ---------- live preview: the Short as it will look at the playhead ----------
-function liveDraw(){if(!E||!F)return;const v=$('edSrc'),c=$('live'),y=c.getContext('2d'),PW=c.width,PH=c.height,W=v.videoWidth,H=v.videoHeight;
+function liveDraw(){liveDraw0();if(SAFE&&E&&F)safeZones($('live'))}
+function liveDraw0(){if(!E||!F)return;const v=$('edSrc'),c=$('live'),y=c.getContext('2d'),PW=c.width,PH=c.height,W=v.videoWidth,H=v.videoHeight;
   y.fillStyle='#000';y.fillRect(0,0,PW,PH);if(!W)return;
   const t=v.currentTime,inside=t>=E.a&&t<=E.b,p=pieces()[pieceAt(t)]||{look:'normal',banner:'layout'};
   $('liveWhat').textContent=inside?'· '+LOOKNAME[p.look]+', '+BANNAME[p.banner]:'· (playhead is outside the Short)';
@@ -1329,6 +1355,7 @@ function frDraw(){liveDraw();if(!F||$('frPanel').style.display==='none')return;
     if(!im){const n=ovImgs[o.file]=new Image();n.onload=frDraw;n.src='/overlay/'+encodeURIComponent(o.file);continue}
     if(!im.complete||!im.naturalWidth)continue;if(o.position==='full'){y.drawImage(im,0,0,PW,PH);continue}
     const h=PW*im.naturalHeight/im.naturalWidth,off=(o.offset||0)/4;y.drawImage(im,0,(o.position==='top'?0:o.position==='bottom'?PH-h:seam-h/2)+off,PW,h)}
+  if(SAFE)safeZones(p);
 }
 $('frToggle').onclick=()=>{const p=$('frPanel'),open=p.style.display==='none';p.style.display=open?'':'none';
   $('frToggle').innerHTML='Framing for this Short '+(open?'&#9652;':'&#9662;');if(open){$('edSrc').pause();frDraw()}};
