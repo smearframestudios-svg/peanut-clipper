@@ -1,5 +1,8 @@
 # What's new
 
+## 1.12.1
+- Listen and Preview: the player now opens right under the match you clicked, so the page no longer jumps back up to the top of the list.
+
 ## 1.12.0
 - Storage: Settings now shows how much space Peanut Clipper uses (downloads, the app's Shorts, exports, compilations), how much is free, and the biggest items - each with its own Delete button.
 - Clean up now: deletes everything your Auto-delete rules allow, after showing you the list.

@@ -166,7 +166,7 @@ a{color:var(--blue)}
 .ov .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px}
 .plan .it .btn{padding:7px 12px;font-size:13px}
-.kw-res{margin-top:16px}.kw-player{display:none;margin:12px 0}.kw-player video{width:100%;max-height:46vh;background:#000;border-radius:10px}
+.kw-res{margin-top:16px}.kw-player{display:none;margin:12px 0}.kw-player.aud video{height:54px;max-height:54px;background:transparent}.mt+.kw-player{margin:0 0 12px}.kw-player video{width:100%;max-height:46vh;background:#000;border-radius:10px}
 .mt{display:flex;gap:14px;align-items:flex-start;padding:12px;border-radius:10px;background:var(--panel2);margin-bottom:8px}
 .mt .tm{font:700 14px Consolas,monospace;color:var(--acc);min-width:74px;padding-top:2px}
 .mt .tx{flex:1;min-width:0;color:#d6d7db;font-size:14px}.mt .tx mark{background:var(--acc);color:#111;border-radius:3px;padding:0 2px;font-weight:700}
@@ -688,7 +688,7 @@ $('quit').onclick=async()=>{if(S&&S.job&&S.job.running&&!confirm('A job is still
   cover('Peanut Clipper is closed','You can close this tab. Open it again from the Desktop icon.');document.querySelector('.spin').style.display='none'};
 
 // ---------- keyword search ----------
-let KW=null, pendingPreview=null;
+let KW=null, pendingPreview=null, kwPlayAt=null;
 $('kwPart').onchange=e=>$('kwPartBox').style.display=e.target.checked?'inline-flex':'none';
 $('kwGo').onclick=async()=>{const url=($('kwUrl').value||$('url').value).trim();
   const body={kind:'search',url,words:$('kwWords').value,chat:$('kwChat').checked,exact:!$('kwSimilar').checked,layout:$('mkLayout').value,sound_only:$('kwSound').checked};
@@ -704,8 +704,10 @@ const T=t=>{t=Math.max(0,Math.floor(t));return Math.floor(t/3600)+':'+String(Mat
 async function openSearch(sid,keepPlayer){
   KW=await api('/api/search?sid='+encodeURIComponent(sid));$('kwRes').style.display='block';$('kwPick').value=sid;
   $('kwHead').textContent=`${KW.matches.length} match${KW.matches.length===1?'':'es'} for: ${KW.queries.join(', ')}`+(KW.audio_only?' - sound only, video not downloaded yet (each match you use downloads just its part)':'');
-  if(!keepPlayer){$('kwPlayer').style.display='none';$('kwVid').pause()}
   const box=$('kwList');
+  if(box.contains($('kwPlayer')))box.before($('kwPlayer'));
+  if(!keepPlayer){$('kwPlayer').style.display='none';$('kwVid').pause();kwPlayAt=null}
+  $('kwPlayer').classList.toggle('aud',!!KW.audio_only);
   if(!KW.matches.length){box.innerHTML='<div class="mute">No matches. Try fewer or shorter words, or turn on "Match similar words".</div>';return}
   box.innerHTML=KW.matches.map(m=>`<div class="mt"><div class="tm">${T(m.t+KW.offset)}</div>
     <div class="tx"><div class="chips" style="margin-bottom:4px">${m.queries.map(q=>`<span class="chip">${m.kind==='chat'?'chat: ':''}${esc(q)}</span>`).join('')}${m.made?`<span class="made">&#10003; ${m.made==='exported'?'exported':'made into a Short'}</span>`:''}</div>
@@ -716,11 +718,12 @@ async function openSearch(sid,keepPlayer){
     if(!KW.source_available){toast('The stream for this search was deleted. Run the search again to re-download it.');return}
     if(b.dataset.a==='play'&&KW.needs_sync){pendingPreview=m.i;await api('/api/run',{kind:'syncfix',sid:KW.sid});lastJobKey='running';
       toast('Converting this stream so it plays in sync (one time, a few minutes). Preview starts by itself when it\'s done.');poll();return}
-    if(b.dataset.a==='play'){const v=$('kwVid');$('kwPlayer').style.display='block';
+    if(b.dataset.a==='play'){const v=$('kwVid');kwPlayAt=m.i;b.closest('.mt').after($('kwPlayer'));$('kwPlayer').style.display='block';
       if(!v.src.endsWith('/search_source/'+KW.sid)){v.preload='auto';v.src='/search_source/'+KW.sid;v.load()}
       const go=()=>{v.currentTime=Math.max(0,m.t-8);v.play()};if(v.readyState>0)go();else v.addEventListener('loadedmetadata',go,{once:true});
-      $('kwPlayer').scrollIntoView({behavior:'smooth',block:'center'});return}
+      return}
     const r=await api('/api/run',{kind:'fromsearch',sid:KW.sid,idx:m.i,export:b.dataset.a==='export',layout:$('mkLayout').value});lastJobKey='running';if(r.queued)toast('<b>In line:</b> this match is cut when the current job finishes.');poll()});
+  if(kwPlayAt!==null){const r=box.querySelector(`[data-a=play][data-i="${kwPlayAt}"]`);if(r)r.closest('.mt').after($('kwPlayer'))}
   markAdded();
 }
 
