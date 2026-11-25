@@ -66,17 +66,27 @@ def process_vod(source, cfg, start=None, end=None, chat_file=None, keep=None, la
             cache = dl / "transcripts.json"
             progress(5, "Getting your video ready")
             video = download.fix_sync(video, cfg)
+    def _drop_empty_job():
+        shutil.rmtree(work, ignore_errors=True)
+        if out.is_dir() and not any(out.iterdir()):
+            out.rmdir()
+
     try:
         duration, sw, sh = probe(video)
     except RuntimeError:
+        _drop_empty_job()
         bad = video
         if download.is_url(source):
             for f in bad.parent.glob("source.*"):
                 f.unlink()
+        else:
+            sys.exit("\n[!] Couldn't read that video - it may be damaged, or not a real video file.\n"
+                     "    Check that it plays on your PC, then try again.\n")
         sys.exit("\n[!] The video came out empty, so there's nothing to clip.\n"
                  "    If you used --from / --to, the video is probably shorter than that time range.\n"
                  "    Use a full stream replay (his channel -> Live tab), or run without --from/--to.\n")
     if duration < 60:
+        _drop_empty_job()
         tip = "Use a full stream replay instead." if download.is_url(source) else "Use a video at least a minute long."
         sys.exit(f"\n[!] That video is only {int(duration)}s long. {tip}\n")
     n = int(duration)

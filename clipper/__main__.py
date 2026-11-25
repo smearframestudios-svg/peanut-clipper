@@ -55,6 +55,8 @@ def main(argv=None):
     u = sub.add_parser("upload")
     u.add_argument("--dry-run", action="store_true")
     sub.add_parser("auto")
+    ib = sub.add_parser("inbox", help="make Shorts from videos waiting in the auto-clip folder")
+    ib.add_argument("--one", action="store_true", help="just the oldest waiting video")
     rr = sub.add_parser("rerender", help="re-cut a Short with new start/end (seconds in the stream file)")
     rr.add_argument("job")
     rr.add_argument("id")
@@ -148,6 +150,12 @@ def main(argv=None):
     elif a.cmd == "auto":
         from .auto import run_auto
         run_auto(cfg)
+    elif a.cmd == "inbox":
+        from . import inbox
+        if a.one:
+            inbox.run_one(cfg)
+        else:
+            inbox.run_all(cfg)
     elif a.cmd == "rerender":
         from .library import rerender
         rerender(cfg, a.job, a.id, a.start, a.end, a.layout, a.framing, a.sections)

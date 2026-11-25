@@ -60,8 +60,7 @@ pre.log{background:#0b0c0e;border:1px solid var(--line);border-radius:9px;paddin
 .set{display:grid;grid-template-columns:260px 1fr;gap:14px 20px;align-items:center}
 .set label.k{color:var(--mute)}
 .toggle{display:flex;align-items:center;gap:10px;cursor:pointer}
-.drop{border:2px dashed #3a3d46;border-radius:12px;padding:22px;text-align:center;color:var(--mute);transition:border-color .15s,background .15s}
-.drop.over{border-color:var(--acc);background:#1f2026}.dropBig{font-size:17px;color:var(--text);font-weight:700}
+#srcCard.over{border-color:var(--acc);background:#1f2026}
 .toggle input{width:18px;height:18px;accent-color:var(--acc)}
 ol.steps{margin:6px 0 14px;padding-left:20px;color:#d6d7db}ol.steps li{margin:4px 0}
 .stage{position:relative;user-select:none;flex:1;min-width:0}.stage img{width:100%;display:block;border-radius:8px}
@@ -222,32 +221,34 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
       <div id="lvMakeBar" style="display:none;margin-top:10px"><div class="bar"><i id="lvMakeFill"></i></div></div>
     </div>
   </div>
-  <div class="card">
-    <h3>From a stream</h3>
+  <div class="card" id="srcCard">
+    <h3>From a stream or your own video</h3>
     <div class="row">
-      <input class="big" type="text" id="url" placeholder="Paste a YouTube stream link (from his channel's Live tab)">
+      <input class="big" type="text" id="url" placeholder="Paste a stream link, or drop a video file here">
+      <button class="btn" id="upPick">Choose file</button>
       <button class="btn main" id="go">Make Shorts</button>
+      <input type="file" id="upFile" accept="video/*,.mp4,.mov,.mkv,.webm,.m4v,.avi,.ts,.flv,.wmv,.mts" style="display:none">
     </div>
+    <div id="upPicked" class="row tiny" style="display:none;margin-top:10px"><span class="mute">Picked:</span> <b id="upName"></b> <span class="mute" id="upState"></span>
+      <button class="link" id="upRemove">remove</button></div>
+    <div id="upBarWrap" style="display:none;margin-top:6px"><div class="bar"><i id="upFill"></i></div></div>
     <div class="row" style="margin-top:12px">
-      <label class="toggle tiny"><input type="checkbox" id="part"> Only use part of the stream</label>
+      <label class="toggle tiny"><input type="checkbox" id="part"> Only use part of the stream or video</label>
       <span id="partBox" style="display:none" class="row tiny">from <input type="text" class="small" id="from" value="1:00:00"> to <input type="text" class="small" id="to" value="2:00:00"></span>
     </div>
+    <p class="tiny mute" style="margin:10px 0 0">A video file is copied into the app, so your original never gets moved or deleted, and the copy is cleaned up with the other downloads (Settings &gt; Storage). Tip: for your own videos the <b>single</b> or <b>blurfit</b> layout usually looks better than the face-cam stack.</p>
   </div>
-  <div class="card" id="upCard">
-    <h3>From your own video</h3>
-    <div class="drop" id="upDrop"><div class="dropBig">Drop a video here</div><div class="tiny mute">MP4, MOV, MKV, WEBM, any length</div>
-      <div style="margin-top:12px"><button class="btn" id="upPick">Choose file</button></div>
-      <input type="file" id="upFile" accept="video/*,.mp4,.mov,.mkv,.webm,.m4v,.avi,.ts,.flv,.wmv,.mts" style="display:none"></div>
-    <div id="upProg" style="display:none;margin-top:12px">
-      <div class="row tiny"><span class="mute" id="upMsg"></span><button class="link" id="upCancel" style="margin-left:auto">Cancel</button></div>
-      <div class="bar" style="margin-top:6px"><i id="upFill"></i></div></div>
-    <div id="upDone" style="display:none;margin-top:12px" class="row tiny"><span id="upDoneMsg"></span>
-      <button class="btn main" id="upMake" style="margin-left:auto">Make Shorts</button></div>
-    <div class="row tiny" style="margin-top:12px;gap:18px">
-      <label class="toggle"><input type="checkbox" id="upThenMake"> Make Shorts as soon as it's in</label>
-      <label class="toggle"><input type="checkbox" id="upPart"> Only use part of the video</label>
-      <span id="upPartBox" style="display:none" class="row tiny">from <input type="text" class="small" id="upFrom" value="0:00"> to <input type="text" class="small" id="upTo" value="10:00"></span></div>
-    <p class="tiny mute" style="margin:10px 0 0">Your video is copied into the app, so the original never gets moved or deleted. The copy is cleaned up with the other downloads once its Shorts are done (Settings &gt; Storage). Tip: for your own videos the <b>single</b> or <b>blurfit</b> layout usually looks better than the face-cam stack.</p>
+  <div class="card" id="inbCard">
+    <div class="row"><h3 style="margin:0">Auto-clip folder</h3>
+      <label class="toggle tiny" style="margin-left:auto"><input type="checkbox" id="inbOn"> On</label></div>
+    <p class="tiny mute" style="margin:6px 0 10px">Any video you put in this folder gets made into Shorts on its own (while the app is open, and in the nightly auto run). Shorts show up in Review.</p>
+    <div class="row"><input class="big" type="text" id="inbFolder" spellcheck="false"><button class="btn" id="inbBrowse">Browse</button><button class="btn" id="inbOpen">Open</button></div>
+    <div class="tiny mute" id="inbStat" style="margin-top:10px"></div>
+    <div id="inbFailed" class="tiny" style="margin-top:6px"></div>
+    <div class="row tiny" style="margin-top:10px;gap:18px">
+      <label class="toggle"><input type="checkbox" id="inbMove"> Move finished videos to a "Done" subfolder</label>
+      <label class="toggle"><input type="checkbox" id="inbDel"> Delete them when done</label>
+      <span class="row tiny"><span class="mute">Layout</span><select id="inbLayout" style="min-width:180px"></select></span></div>
   </div>
   <div class="card">
     <h3>Find by keywords</h3>
@@ -642,7 +643,7 @@ function fmtTime(t){if(!t)return'';let[h,m]=t.split(':').map(Number);const ap=h>
 function drawJob(j){
   const card=$('jobCard');if(!j.kind){card.style.display='none';return}
   card.style.display='block';
-  const titles={syncfix:'Converting the stream',compadd:'Adding to the compilation',compexport:'Exporting',coladd:'Adding to the collection',search:'Searching for keywords',fromsearch:'Cutting a match',rerender:'Re-cutting a Short',export:'Exporting for Premiere',vod:'Making Shorts',clips:'Twitch top clips',upload:'Uploading',auto:'Auto mode',frame:'Grabbing a frame',hwtest:'Graphics card test'};
+  const titles={syncfix:'Converting the stream',compadd:'Adding to the compilation',compexport:'Exporting',coladd:'Adding to the collection',search:'Searching for keywords',fromsearch:'Cutting a match',rerender:'Re-cutting a Short',export:'Exporting for Premiere',vod:'Making Shorts',inbox:'Auto-clip folder',clips:'Twitch top clips',upload:'Uploading',auto:'Auto mode',frame:'Grabbing a frame',hwtest:'Graphics card test'};
   $('jobTitle').textContent=(titles[j.kind]||'Working')+(j.running?'...':'');
   $('jobPct').textContent=j.running?j.pct+'%':'';
   $('bar').className='bar'+(j.ok===false?' err':(j.ok?' done':''));$('bar').firstElementChild.style.width=(j.ok?100:j.pct)+'%';
@@ -651,7 +652,7 @@ function drawJob(j){
   if(logOpen){$('log').textContent=j.log.join('\n');}
   const key=j.kind+':'+j.ok;
   if(!j.running&&j.ok!==null&&lastJobKey&&lastJobKey!==key){
-    if(j.ok&&['vod','clips','auto'].includes(j.kind)){toast(`<b>${esc(j.label)}</b><br><button class="link" onclick="show('review')">Go to Review</button>`)}
+    if(j.ok&&['vod','clips','auto','inbox'].includes(j.kind)){toast(`<b>${esc(j.label)}</b><br><button class="link" onclick="show('review')">Go to Review</button>`)}
     if(j.ok&&j.kind==='frame'){initLayout(true)}
     if(j.ok&&j.kind==='upload'){loadPlan()}
     if(j.ok&&j.kind==='export'){toast('<b>Exported for Premiere.</b><br><span class="tiny">'+esc(S.settings.export_folder||S.default_export)+'</span>');loadPlan()}
@@ -675,8 +676,10 @@ function drawJob(j){
 $('logBtn').onclick=()=>{logOpen=!logOpen;$('log').style.display=logOpen?'block':'none';$('logBtn').textContent=logOpen?'Hide details':'Show details';if(S)drawJob(S.job)};
 $('cancel').onclick=()=>api('/api/cancel',{}).then(poll);
 $('part').onchange=e=>$('partBox').style.display=e.target.checked?'inline-flex':'none';
-$('go').onclick=async()=>{const body={kind:'vod',url:$('url').value,layout:$('mkLayout').value};if($('part').checked){body.from=$('from').value;body.to=$('to').value}
-  await api('/api/run',body);lastJobKey='running';poll()};
+$('go').onclick=async()=>{
+  if(UP.file&&!UP.path){UP.makeWhenDone=true;toast('Making Shorts starts as soon as the upload finishes.');return}
+  const body={kind:'vod',url:UP.path||$('url').value,layout:$('mkLayout').value};if($('part').checked){body.from=$('from').value;body.to=$('to').value}
+  await api('/api/run',body);lastJobKey='running';if(UP.path){UP.path='';UP.file=null;upDraw('')}poll()};
 $('goTwitch').onclick=async()=>{await api('/api/run',{kind:'clips',layout:$('mkLayout').value});lastJobKey='running';poll()};
 $('goAuto').onclick=async()=>{await api('/api/run',{kind:'auto'});lastJobKey='running';poll()};
 
@@ -1009,54 +1012,77 @@ $('liveStop').onclick=async()=>{const s=LV.state;
   if(s==='crashed'){await api('/api/live',{action:LV.bytes?'recover':'clear'});setTimeout(liveTick,800);return}
   if(s==='recording'&&!confirm('Stop recording? What was recorded so far is saved.'))return;
   await api('/api/live',{action:'stop'});setTimeout(liveTick,800)};
-$('lvMake').onclick=()=>{$('url').value=LV.url||'';$('part').checked=false;$('partBox').style.display='none';$('go').click()};
+$('lvMake').onclick=()=>{upClear();$('url').value=LV.url||'';$('part').checked=false;$('partBox').style.display='none';$('go').click()};
 $('lvSearch').onclick=()=>{$('kwUrl').value=LV.url||'';$('kwWords').focus();$('kwWords').scrollIntoView({behavior:'smooth',block:'center'})};
 $('lvAgain').onclick=async()=>{await api('/api/live',{action:'clear'});liveTick()};
 [['liveFromStart','live_from_start'],['liveThenMake','live_then_make'],['liveInAuto','live_in_auto']].forEach(([id,k])=>
   $(id).onchange=()=>{S.settings[k]=$(id).checked;api('/api/setting',{[k]:$(id).checked})});
 function liveFill(){if(!S||!S.settings)return;$('liveFromStart').checked=S.settings.live_from_start!==false;
-  $('liveThenMake').checked=S.settings.live_then_make!==false;$('liveInAuto').checked=!!S.settings.live_in_auto;
-  $('upThenMake').checked=S.settings.upload_then_make!==false}
+  $('liveThenMake').checked=S.settings.live_then_make!==false;$('liveInAuto').checked=!!S.settings.live_in_auto}
 
-// ---------- upload your own video ----------
-const UP={xhr:null,path:'',name:'',waitMake:false};
+// ---------- a video file in the "From a stream or your own video" box ----------
+const UP={file:null,xhr:null,path:'',makeWhenDone:false};
 function upSize(b){return b>=2**30?(b/2**30).toFixed(1)+' GB':Math.max(1,Math.round(b/2**20))+' MB'}
-function upShow(which){$('upProg').style.display=which==='prog'?'':'none';$('upDone').style.display=which==='done'?'':'none';$('upDrop').style.display=which==='prog'?'none':''}
+function upDraw(state){$('upPicked').style.display=UP.file?'':'none';$('upBarWrap').style.display=UP.xhr?'':'none';
+  if(UP.file)$('upName').textContent=`${UP.file.name} (${upSize(UP.file.size)})`;if(state!==undefined)$('upState').innerHTML=state;
+  $('url').placeholder=UP.file?'Using the video below - remove it to paste a link instead':'Paste a stream link, or drop a video file here'}
+function upDiscard(path){if(path)api('/api/video_upload_discard',{path}).catch(()=>{})}
+function upClear(){if(UP.xhr){const x=UP.xhr;UP.xhr=null;x.abort()}upDiscard(UP.path);UP.file=null;UP.path='';UP.makeWhenDone=false;upDraw('')}
 async function upStart(f){
-  if(!f)return;if(UP.xhr){toast('Wait for the current upload to finish, or cancel it.');return}
+  if(!f)return;upClear();
   try{await api('/api/video_upload_check',{name:f.name,size:f.size})}catch(e){return}
-  upShow('prog');UP.waitMake=false;$('upFill').style.width='0%';$('upMsg').innerHTML=`Uploading <b>${esc(f.name)}</b> (${upSize(f.size)})...`;
-  const x=new XMLHttpRequest();UP.xhr=x;const t0=Date.now();
-  x.upload.onprogress=e=>{if(!e.lengthComputable)return;const fr=e.loaded/e.total,el=(Date.now()-t0)/1000;
+  UP.file=f;$('url').value='';$('upFill').style.width='0%';
+  const x=new XMLHttpRequest();UP.xhr=x;const t0=Date.now();upDraw('uploading...');
+  x.upload.onprogress=e=>{if(!e.lengthComputable||UP.xhr!==x)return;const fr=e.loaded/e.total,el=(Date.now()-t0)/1000;
     const left=fr>0.02?el/fr-el:null;const eta=left==null?'':left<60?`, about ${Math.max(1,Math.round(left))} s left`:`, about ${Math.round(left/60)} min left`;
-    $('upFill').style.width=(fr*100).toFixed(1)+'%';$('upMsg').innerHTML=`Uploading <b>${esc(f.name)}</b> (${upSize(f.size)}), ${Math.floor(fr*100)}%${eta}`};
-  x.onload=()=>{UP.xhr=null;let j={};try{j=JSON.parse(x.responseText)}catch(e){}
-    if(x.status!==200||!j.path){upShow('');toast(esc(j.error||'The upload didn\'t work. Try again.'));return}
-    UP.path=j.path;UP.name=j.name;upShow('done');$('upDoneMsg').innerHTML=`<b>${esc(j.name)}</b> is in (${upSize(j.size)}).`;
-    if($('upThenMake').checked)upMakeNow()};
-  x.onerror=()=>{UP.xhr=null;upShow('');toast('The upload stopped. Is Peanut Clipper still open? Try again.')};
-  x.onabort=()=>{UP.xhr=null;upShow('');toast('Upload cancelled.')};
+    $('upFill').style.width=(fr*100).toFixed(1)+'%';upDraw(`uploading ${Math.floor(fr*100)}%${eta}`)};
+  x.onload=()=>{if(UP.xhr!==x)return;UP.xhr=null;let j={};try{j=JSON.parse(x.responseText)}catch(e){}
+    if(x.status!==200||!j.path){UP.file=null;upDraw('');toast(esc(j.error||'The upload didn\'t work. Try again.'));return}
+    UP.path=j.path;upDraw('ready - press Make Shorts');if(UP.makeWhenDone){UP.makeWhenDone=false;$('go').click()}};
+  x.onerror=()=>{if(UP.xhr!==x)return;UP.xhr=null;UP.file=null;upDraw('');toast('The upload stopped. Is Peanut Clipper still open? Try again.')};
   x.open('POST','/api/video_upload?name='+encodeURIComponent(f.name));x.send(f)}
-async function upMakeNow(){
-  if(!UP.path)return;
-  if(S&&S.job&&S.job.running){UP.waitMake=true;$('upDoneMsg').innerHTML=`<b>${esc(UP.name)}</b> is in. Making Shorts starts when the current job finishes.`;return}
-  UP.waitMake=false;const body={kind:'vod',url:UP.path,layout:$('mkLayout').value};
-  if($('upPart').checked){body.from=$('upFrom').value;body.to=$('upTo').value}
-  try{await api('/api/run',body)}catch(e){return}
-  lastJobKey='running';toast(`<b>Making Shorts</b> from ${esc(UP.name)}. Progress shows on this tab.`);UP.path='';upShow('');poll()}
-setInterval(()=>{if(UP.waitMake&&S&&S.job&&!S.job.running)upMakeNow()},2000);
 $('upPick').onclick=()=>$('upFile').click();
 $('upFile').onchange=e=>{upStart(e.target.files[0]);e.target.value=''};
-$('upCancel').onclick=()=>{if(UP.xhr)UP.xhr.abort()};
-$('upMake').onclick=upMakeNow;
-$('upPart').onchange=e=>$('upPartBox').style.display=e.target.checked?'inline-flex':'none';
-$('upThenMake').onchange=()=>{S.settings.upload_then_make=$('upThenMake').checked;api('/api/setting',{upload_then_make:$('upThenMake').checked})};
-const upDrop=$('upDrop');
-upDrop.addEventListener('dragover',e=>{e.preventDefault();upDrop.classList.add('over')});
-upDrop.addEventListener('dragleave',()=>upDrop.classList.remove('over'));
-upDrop.addEventListener('drop',e=>{e.preventDefault();upDrop.classList.remove('over');upStart(e.dataTransfer.files[0])});
+$('upRemove').onclick=upClear;
+$('url').addEventListener('input',()=>{if(UP.file&&$('url').value.trim())upClear()});
+const srcCard=$('srcCard');
+srcCard.addEventListener('dragover',e=>{e.preventDefault();srcCard.classList.add('over')});
+srcCard.addEventListener('dragleave',e=>{if(!srcCard.contains(e.relatedTarget))srcCard.classList.remove('over')});
+srcCard.addEventListener('drop',e=>{e.preventDefault();srcCard.classList.remove('over');if(e.dataTransfer.files[0])upStart(e.dataTransfer.files[0])});
 window.addEventListener('dragover',e=>e.preventDefault());window.addEventListener('drop',e=>e.preventDefault());
 window.addEventListener('beforeunload',e=>{if(UP.xhr){e.preventDefault();e.returnValue=''}});
+
+// ---------- auto-clip folder ----------
+let INB=null;
+function inbDraw(){const s=INB;if(!s)return;
+  $('inbOn').checked=s.enabled;if(document.activeElement!==$('inbFolder'))$('inbFolder').value=s.folder;
+  $('inbMove').checked=s.after==='move';$('inbDel').checked=s.after==='delete';
+  if($('inbLayout').value!==s.layout&&document.activeElement!==$('inbLayout'))$('inbLayout').value=s.layout;
+  const parts=[];
+  if(!s.enabled)parts.push('Off - turn it on to start watching the folder.');
+  else if(!s.exists)parts.push("That folder doesn't exist yet - press Open to make it.");
+  if(s.making)parts.push(`Making Shorts from <b>${esc(s.making)}</b> now`);
+  parts.push(`Waiting: ${s.waiting.length}${s.waiting.length?' ('+s.waiting.slice(0,3).map(esc).join(', ')+(s.waiting.length>3?', ...':'')+')':''}`);
+  parts.push(`Done: ${s.done}`);
+  if(s.last)parts.push(s.last.status==='done'?`Last one: <b>${esc(s.last.name)}</b>, ${s.last.shorts} Short${s.last.shorts===1?'':'s'} in Review`:s.last.status==='failed'?`Last one: <b>${esc(s.last.name)}</b> didn't work`:'');
+  $('inbStat').innerHTML=parts.filter(Boolean).join(' · ');
+  $('inbFailed').innerHTML=s.failed.map(f=>`<div><span style="color:var(--no)">Couldn't clip ${esc(f.name)}:</span> <span class="mute">${esc(f.why||'')}</span> <button class="link" data-k="${esc(f.key)}">Try again</button></div>`).join('');
+  $('inbFailed').querySelectorAll('button[data-k]').forEach(b=>b.onclick=async()=>{INB=await api('/api/inbox',{action:'retry',key:b.dataset.k});inbDraw()})}
+async function inbLoad(){try{const r=await fetch('/api/inbox');if(r.ok){INB=await r.json();inbDraw()}}catch(e){}}
+async function inbSet(k,v){S.settings[k]=v;await api('/api/setting',{[k]:v});await inbLoad()}
+$('inbOn').onchange=async()=>{await inbSet('watch_enabled',$('inbOn').checked);
+  if($('inbOn').checked){try{INB=await api('/api/inbox',{action:'make_folder'});inbDraw()}catch(e){}
+    toast('<b>Auto-clip folder is on.</b><br><span class="tiny">Videos you put in the folder start a few seconds after they finish copying in.</span>')}};
+$('inbFolder').onchange=()=>inbSet('watch_folder',$('inbFolder').value.trim());
+$('inbBrowse').onclick=async()=>{toast('Pick a folder in the window that just opened (it may be behind this one).');
+  const r=await api('/api/pick_folder',{start:$('inbFolder').value,title:'Which folder should Peanut Clipper watch?'}).catch(()=>null);
+  if(!r||!r.path){toast('No folder picked - nothing changed.');return}await inbSet('watch_folder',r.path)};
+$('inbOpen').onclick=async()=>{try{INB=await api('/api/inbox',{action:'make_folder'});inbDraw()}catch(e){return}api('/api/open_folder',{path:INB.folder})};
+$('inbMove').onchange=()=>inbSet('watch_after',$('inbMove').checked?'move':'keep');
+$('inbDel').onchange=()=>{if($('inbDel').checked&&!confirm('Delete each video from the folder once its Shorts are made? (The Shorts stay in Review.)')){$('inbDel').checked=false;return}
+  inbSet('watch_after',$('inbDel').checked?'delete':'keep')};
+$('inbLayout').onchange=()=>inbSet('watch_layout',$('inbLayout').value);
+setInterval(()=>{if(!document.hidden&&$('make').classList.contains('on'))inbLoad()},4000);inbLoad();
 
 // ---------- compilations ----------
 let CMP=null,CMPS=[],cmpCur=null,cmpStopAt=null,cmpQueue=null,crashWords='';
@@ -1240,6 +1266,8 @@ function updateLayoutMenus(){
   const opts=src.layouts.map(l=>`<option value="${l.id}">${esc(l.name)}${l.id===src.default?' (default)':''}</option>`).join('');
   for(const id of ['mkLayout','edLayout']){const el=$(id);if(!el)continue;const v=el.value;el.innerHTML=opts;
     el.value=src.layouts.some(l=>l.id===v)?v:src.default}
+  const il=$('inbLayout');if(il){const v=(INB&&INB.layout)||il.value;il.innerHTML='<option value="">Default layout</option>'+src.layouts.map(l=>`<option value="${l.id}">${esc(l.name)}</option>`).join('');
+    il.value=src.layouts.some(l=>l.id===v)?v:''}
 }
 function saveLY(msg){clearTimeout(lyTimer);$('layMsg').textContent='Saving...';
   lyTimer=setTimeout(async()=>{await api('/api/layouts',LY);$('layMsg').textContent=msg||'Saved.';S.layouts=clone(LY);updateLayoutMenus()},500)}

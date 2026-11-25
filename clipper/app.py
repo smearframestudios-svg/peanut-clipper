@@ -97,7 +97,7 @@ class Runner:
         if not self.ok:
             err = next((ln for ln in reversed(self.log) if ln.startswith(("[!]", "ERROR")) or "Error" in ln), "")
             self.label = (err.strip() or f"Stopped (code {code})")[:300]
-        elif self.kind not in ("vod", "search", "fromsearch"):
+        elif self.kind not in ("vod", "search", "fromsearch", "inbox"):
             self.pct = 100
             self.label = {"upload": "Upload finished", "frame": "Frame ready - draw the boxes below",
                           "auto": "Auto run finished", "clips": "Twitch Shorts ready to review",
@@ -197,7 +197,7 @@ def pick_folder(start="", title="Pick a folder"):
     return r.stdout.strip().splitlines()[-1] if r.stdout.strip() else ""
 
 
-VIDEO_TYPES = (".mp4", ".mov", ".mkv", ".webm", ".m4v", ".avi", ".ts", ".flv", ".wmv", ".mts")
+from .inbox import VIDEO_TYPES  # noqa: E402
 
 
 def upload_problem(name, length, cfg):
@@ -220,8 +220,6 @@ def save_upload(rfile, length, name, cfg):
     """A video the owner uploaded: copied into work/_downloads/upload-<name>-u<time>/source.<ext>, so it is
     treated like a downloaded stream (re-cuts work, and Storage clean-up removes the copy once its Shorts are done).
     Returns (True, {path, name, size}) or (False, message)."""
-    import datetime as dt
-    from .util import slug
     name = Path(name).name or "video.mp4"
     ext = Path(name).suffix.lower()
     problem = upload_problem(name, length, cfg)
@@ -229,8 +227,8 @@ def save_upload(rfile, length, name, cfg):
         _drain(rfile, length)
         return False, problem
     base = Path(cfg["paths"]["work_dir"]) / "_downloads"
-    folder = base / f"upload-{slug(Path(name).stem, 30)}-u{dt.datetime.now():%Y%m%d%H%M%S}"
-    folder.mkdir(parents=True, exist_ok=True)
+    from .inbox import new_upload_folder
+    folder = new_upload_folder(cfg, name)
     part = folder / ("source" + ext + ".part")
     left = length
     try:
@@ -248,8 +246,6 @@ def save_upload(rfile, length, name, cfg):
         return False, "The upload stopped before the whole video came through. Try again."
     final = folder / ("source" + ext)
     os.replace(part, final)
-    (folder / "title.txt").write_text(Path(name).stem, encoding="utf-8")
-    (folder / "uploaded").write_text(name, encoding="utf-8")
     return True, {"ok": True, "path": str(final), "name": name, "size": length}
 
 
@@ -261,6 +257,28 @@ def _drain(rfile, length):
         if not chunk:
             break
         left -= len(chunk)
+
+
+UPLOADING = {"n": 0}
+
+
+def inbox_watcher():
+    """While the app is open: when nothing else is running, clip the next video waiting in the auto-clip folder."""
+    from . import inbox
+    while True:
+        time.sleep(15)
+        try:
+            cfg = load_config()
+            if not cfg["settings"].get("watch_enabled"):
+                continue
+            if RUNNER.running or RUNNER.queue or UPDATE.get("busy") or UPDATE.get("after_job") or UPLOADING["n"]:
+                continue
+            if RUNNER.finished_at and time.time() - RUNNER.finished_at < 20:
+                continue                     # leave a moment to start the next thing by hand
+            if inbox.ready(cfg):
+                RUNNER.start("inbox", ["inbox", "--one"], "Auto-clip folder: starting...", None)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def make_handler():
@@ -324,6 +342,9 @@ def make_handler():
                 return self._send(200, PAGE)
             if p == "/api/ping":
                 return self._send(200, {"app": "peanut-clipper"})
+            if p == "/api/inbox":
+                from . import inbox
+                return self._send(200, inbox.status(load_config()))
             if p == "/api/state":
                 return self._send(200, app_state())
             if p == "/api/clips":
@@ -449,7 +470,11 @@ def make_handler():
             if p == "/api/video_upload":
                 from urllib.parse import parse_qs
                 name = parse_qs(urlparse(self.path).query).get("name", ["video.mp4"])[0]
-                ok, info = save_upload(self.rfile, n, name, load_config())
+                UPLOADING["n"] += 1
+                try:
+                    ok, info = save_upload(self.rfile, n, name, load_config())
+                finally:
+                    UPLOADING["n"] -= 1
                 return self._send(200 if ok else 400, info if ok else {"error": info})
             raw = self.rfile.read(n) if n else b"{}"
             cfg = load_config()
@@ -463,6 +488,24 @@ def make_handler():
                 (DATA / "token.json").unlink(missing_ok=True)
                 return self._send(200, {"ok": True})
             body = json.loads(raw or b"{}")
+            if p == "/api/inbox":
+                from . import inbox
+                if body.get("action") == "retry":
+                    inbox.retry(str(body.get("key") or ""))
+                elif body.get("action") == "make_folder":
+                    try:
+                        inbox.folder(cfg).mkdir(parents=True, exist_ok=True)
+                    except OSError as e:
+                        return self._send(400, {"error": f"Couldn't make that folder: {e.strerror or e}"})
+                return self._send(200, inbox.status(load_config()))
+            if p == "/api/video_upload_discard":     # "remove" on a picked video: drop the app's unused copy
+                f = Path(str(body.get("path") or "")).parent
+                base = Path(cfg["paths"]["work_dir"]) / "_downloads"
+                used = any((load_json(c) or {}).get("source_dir") and Path(load_json(c)["source_dir"]).resolve() == f.resolve()
+                           for c in Path(cfg["paths"]["output_dir"]).glob("*/clips.json")) if f.is_dir() else True
+                if f.is_dir() and (f / "uploaded").exists() and f.resolve().parent == base.resolve() and not used:
+                    shutil.rmtree(f, ignore_errors=True)
+                return self._send(200, {"ok": True})
             if p == "/api/video_upload_check":
                 problem = upload_problem(str(body.get("name") or ""), int(body.get("size") or 0), cfg)
                 return self._send(400 if problem else 200, {"error": problem} if problem else {"ok": True})
@@ -669,7 +712,7 @@ def make_handler():
                 library.decide(cfg, body["job"], body["id"], body["status"], body.get("title"))
                 return self._send(200, {"ok": True})
             if p == "/api/setting":          # one quick setting (e.g. a checkbox), no side effects
-                allowed = {"live_from_start", "live_then_make", "live_in_auto", "upload_then_make", "export_folder", "screenshot_folder",
+                allowed = {"live_from_start", "live_then_make", "live_in_auto", "watch_enabled", "watch_folder", "watch_after", "watch_layout", "export_folder", "screenshot_folder",
                            "title_folder"}
                 save_settings({k: v for k, v in body.items() if k in allowed})
                 return self._send(200, {"ok": True})
@@ -803,6 +846,7 @@ def serve_app(cfg, port=8765, open_browser=True, wait=False):
     if open_browser:
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
     threading.Thread(target=check_updates, daemon=True).start()
+    threading.Thread(target=inbox_watcher, daemon=True).start()
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

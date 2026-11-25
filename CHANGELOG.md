@@ -1,5 +1,12 @@
 # What's new
 
+## 1.14.0
+- One box for links and videos: the Make Shorts box now takes a stream link or your own video. Drop a video on it (or press Choose file) and it uploads right away. Press Make Shorts when you're ready; pressing it while the upload is still going starts as soon as it's done. This replaces the separate "From your own video" box.
+- Auto-clip folder: a new card on Make Shorts. Turn it on, and any video you put in that folder gets made into Shorts on its own, while the app is open and in the nightly auto run. They show up in Review like any other Shorts.
+- Finished videos: by default they move to a "Done" folder inside it. You can have them deleted instead, or left where they are (they won't be clipped twice).
+- Layout for the folder: pick which layout the folder's videos use.
+- If a video can't be clipped: the card says why, with a Try again button, and nothing is left behind.
+
 ## 1.13.0
 - Upload your own video: a new "From your own video" box on Make Shorts. Drop a video in (or press Choose file) and the app finds the best moments and makes Shorts, just like with a stream link.
 - Make Shorts as soon as it's in: on by default. If something else is running, it starts right after that job finishes.

@@ -76,6 +76,9 @@ def run_auto(cfg):
                 _log(f"skipped for now: {str(e).strip()}")
                 continue
             break                 # one stream per night is plenty
+        if st.get("watch_enabled"):
+            from . import inbox
+            made += inbox.run_all(cfg, _log)
         if st.get("auto_twitch_clips") and st.get("twitch_client_id"):
             _log("checking today's top Twitch clips")
             if pipeline.process_twitch_clips(cfg, 24, 8):
