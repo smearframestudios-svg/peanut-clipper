@@ -14,7 +14,7 @@ owner's fan channel @BurntPeanutXD. The owner is not a programmer: they install 
 4. If `requirements.txt` changes, the updater re-runs `clipper setup`, which installs it.
 
 ## Never touched by updates (owner's data)
-`.venv/` packages, `bin/` (ffmpeg, ffprobe, deno), `data/` (settings.json, layout.json,
+`.venv/` packages, `bin/` (ffmpeg, ffprobe, deno), `data/` (settings.json, layout.json, editor_media/ (intro/outro/music for the editor),
 overlays/, client_secret.json, token.json, hardware.json, processed.json, logs), `work/`
 (downloaded streams), `output/` (Shorts + clips.json), `exports/`, `compilations/` (each compilation's moments). New settings go in
 `DEFAULT_SETTINGS` in `clipper/util.py` so existing installs pick up defaults.
@@ -33,6 +33,10 @@ overlays/, client_secret.json, token.json, hardware.json, processed.json, logs),
   video files (the Make Shorts box takes a link OR a file): app.save_upload streams the file into
   work/_downloads/upload-<name>-u<time>/source.<ext> (inbox.new_upload_folder: title.txt + an `uploaded` marker), then a normal `vod` job on that path
   (pipeline treats the folder like a download: fix_sync, cache, source_dir); "remove" = /api/video_upload_discard,
+  Compilations editor (#edTl timeline, #edInsp, ED state in app_page): compile.edit actions split/moment(title,text,tr,zoom)/media + undo
+  (compilations/<id>/history.json, 40 steps; _gc deletes files only when no step uses them), add_range (+ Add, `compaddrange` job, needs c.source_file),
+  export_video: intro/outro (_norm_piece), per-part zoom crop (_zoom_filter from the default layout) + text PNG (_text_png) + tr, xfade joins on settb=AVTB,
+  music bed pass, chapters() -> '<name> - chapters.txt',
   `longvid.py` (Make: Long video / Both on the Make Shorts box: pipeline.fetch_source + check_video shared with process_vod, Detector with longer/closer
   moments and min_score 0, pick() best until long_minutes, saved as a compilation via compile.copy_range; data/last_longvid.json for the page),
   `inbox.py` (Auto-clip folder card: settings watch_enabled/watch_folder/watch_after move|delete|keep/watch_layout; app.inbox_watcher starts

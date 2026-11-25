@@ -118,6 +118,26 @@ a{color:var(--blue)}
 .ed-side .live{width:100%;aspect-ratio:9/16;border-radius:10px;background:#000;display:block}
 .ed-side .btn{padding:7px 10px;font-size:13px;width:100%;margin-top:6px}
 .cmp-head{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.ed-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,1fr);gap:16px}
+.ed-player{position:relative;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:16/9}
+.ed-player video{position:absolute;inset:0;width:100%;height:100%;transform-origin:0 0}
+.ed-ov{position:absolute;left:50%;bottom:9%;transform:translateX(-50%);background:rgba(10,10,12,.6);color:#fff;font:italic 900 clamp(16px,2.6vw,34px)/1.1 "Segoe UI",sans-serif;padding:6px 18px;border-radius:8px;display:none;max-width:84%;text-align:center;text-shadow:0 0 3px #000,0 0 3px #000}
+.ed-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#5a5d66;font-size:14px;pointer-events:none}
+.ed-insp{background:var(--panel2);border-radius:12px;padding:14px;font-size:14px}
+.ed-insp .k{color:var(--mute);font-size:12px;margin:10px 0 4px}.ed-insp input[type=text]{width:100%}
+.ed-tl{position:relative;display:flex;gap:4px;margin-top:14px;padding:4px 0 8px;overflow-x:auto}
+.blk{position:relative;flex:1 1 0;min-width:46px;height:66px;background:#2a2c33 center/cover;border:2px solid #3a3d46;border-radius:8px;cursor:grab;overflow:hidden;user-select:none}
+.blk .lb{position:absolute;left:0;right:0;bottom:0;padding:1px 6px;font-size:11px;background:rgba(0,0,0,.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.blk .tg{position:absolute;top:3px;right:12px;font-size:10px;background:rgba(0,0,0,.7);border-radius:4px;padding:0 4px;color:var(--acc)}
+.blk.sel{border-color:var(--acc)}.blk.over{outline:2px dashed var(--acc);outline-offset:2px}.blk.drag{opacity:.4}
+.blk .h{position:absolute;top:0;bottom:0;width:9px;background:var(--acc);cursor:ew-resize;display:none;z-index:2}
+.blk.sel .h{display:block}.blk .h.l{left:0}.blk .h.r{right:0}
+.blk.add{flex:0 0 74px;border-style:dashed;display:flex;align-items:center;justify-content:center;color:var(--mute);cursor:pointer;background:none;font-weight:700}
+.ed-ph{position:absolute;top:2px;bottom:6px;width:2px;background:#fff;pointer-events:none;box-shadow:0 0 0 1px #000;z-index:3}
+.ed-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.ed-add{background:var(--panel2);border-radius:12px;padding:14px;margin-top:12px}.ed-add video{width:100%;max-height:360px;background:#000;border-radius:8px;margin-top:8px}
+.mono{font:700 14px Consolas,monospace}.btn.sm{padding:6px 10px;font-size:12px}
+
 .cmp-bar{height:12px;flex:1;min-width:200px;background:#0f1012;border:1px solid var(--line);border-radius:99px;overflow:hidden}
 .cmp-bar>i{display:block;height:100%;background:var(--acc)}.cmp-bar.done>i{background:var(--ok)}
 .mo{display:flex;gap:12px;align-items:center;background:var(--panel2);border-radius:10px;padding:8px;margin-bottom:8px;border:2px solid transparent}
@@ -330,7 +350,7 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
 </section>
 
 <section id="comps">
-  <h2>Compilations</h2><p class="sub">Long videos made of many moments (like every GTA crash), from keyword searches on any number of streams.</p>
+  <h2>Compilations</h2><p class="sub">Long 16:9 videos: the ones Make Shorts builds (Long video), and ones you put together from keyword searches (like every GTA crash). Edit them here, then export.</p>
   <div class="card">
     <div class="cmp-head"><select id="cmpPick"></select><button class="btn" id="cmpNew">New compilation</button>
       <button class="btn" id="cmpRen">Rename</button><button class="btn no" id="cmpDel">Delete</button>
@@ -339,19 +359,42 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
       <div class="cmp-bar" id="cmpBar"><i></i></div><span class="tiny mute" id="cmpLeft"></span></div>
   </div>
   <div class="card" id="cmpBody">
-    <div class="cmp-player" id="cmpPlayer" style="display:none;margin-bottom:12px"><video id="cmpVid" controls preload="none"></video>
-      <div class="row tiny mute" style="margin-top:6px"><span id="cmpNow"></span><button class="btn" id="cmpStop" style="margin-left:auto;padding:6px 10px">Stop</button></div></div>
-    <div class="row" style="margin-bottom:10px"><b id="cmpCount"></b><span class="tiny mute">Drag the number to reorder.</span>
-      <span style="margin-left:auto" class="row"><button class="btn" id="cmpPlayAll">&#9654; Play all</button><button class="btn" id="cmpShuffle">Shuffle</button><button class="btn" id="cmpOldest">Oldest first</button></span></div>
-    <div id="cmpList"></div>
+    <div class="ed-grid">
+      <div>
+        <div class="ed-player" id="edPlayer"><video id="cmpVid" preload="none" playsinline></video><div class="ed-ov" id="edOv"></div>
+          <div class="ed-empty" id="edEmpty">Press Play, or click a part of the timeline</div></div>
+        <div class="ed-row"><button class="btn main" id="edPlay">&#9654; Play</button><span class="mono" id="edTime">0:00 / 0:00</span>
+          <button class="btn" id="edSplit" title="Cut the part under the playhead in two (S)">Split at playhead</button>
+          <button class="btn" id="edDel">Delete part</button><button class="btn" id="edUndo">Undo</button></div>
+      </div>
+      <div class="ed-insp" id="edInsp"></div>
+    </div>
+    <div class="ed-tl" id="edTl"></div>
+    <div class="row tiny mute" style="justify-content:space-between"><span>Drag parts to reorder &middot; drag the yellow edges to trim &middot; right-click to remove</span>
+      <span>+ Add: scrub the whole stream and mark a new part</span></div>
+    <div id="edAdd" class="ed-add" style="display:none">
+      <div class="row"><b>Add a part from the stream</b><span class="tiny mute" id="edAddWhere"></span><button class="link" id="edAddX" style="margin-left:auto">Close</button></div>
+      <video id="edSrc" controls preload="none" playsinline></video>
+      <div class="ed-row"><button class="btn" id="edMarkA">Mark start</button><button class="btn" id="edMarkB">Mark end</button>
+        <span class="mono" id="edMarks">Start - &middot; End -</span><button class="btn main" id="edAddGo" style="margin-left:auto">Add this part</button></div>
+    </div>
+    <div class="ed-row" style="margin-top:14px"><span class="tiny mute">Between parts (unless a part says otherwise)</span>
+      <span class="seg" id="cmpTr"><button data-v="cut">Cut</button><button data-v="flash">Flash</button><button data-v="fade">Fade</button></span>
+      <span class="tiny mute" style="margin-left:12px">Numbers on screen</span>
+      <span class="seg" id="cmpNum"><button data-v="1">On</button><button data-v="0">Off</button></span>
+      <span style="margin-left:auto" class="row"><button class="btn" id="cmpShuffle">Shuffle</button><button class="btn" id="cmpOldest">Oldest first</button></span></div>
   </div>
   <div class="card">
-    <div class="row"><span class="tiny mute" style="min-width:120px">Between moments</span>
-      <span class="seg" id="cmpTr"><button data-v="cut">Cut</button><button data-v="flash">Quick flash</button><button data-v="fade">Crossfade</button></span>
-      <span class="tiny mute" style="margin-left:18px">Moment numbers on screen</span>
-      <span class="seg" id="cmpNum"><button data-v="1">On</button><button data-v="0">Off</button></span></div>
-    <div class="row" style="margin-top:14px"><button class="btn main" id="cmpExport">Export video (16:9)</button><button class="btn" id="cmpPrem">Export for Premiere</button>
-      <span class="tiny mute">Premiere = every moment as its own file + a ready-made sequence (XML) with each one on its own cut. In Premiere: File &rarr; Import &rarr; the .xml.</span></div>
+    <div class="ed-row" style="margin-top:0"><span class="tiny mute">Intro</span><select id="edIntro"></select>
+      <span class="tiny mute">Outro</span><select id="edOutro"></select>
+      <span class="tiny mute">Music bed</span><select id="edMusic"></select>
+      <span class="row tiny" id="edVolBox"><input type="range" id="edVol" min="0" max="60" step="1" style="width:110px"><span class="mono" id="edVolV"></span></span>
+      <button class="btn" id="edMediaUp">Upload clip or music</button><input type="file" id="edMediaFile" accept="video/*,audio/*,.mp3,.wav,.m4a,.mp4,.mov" style="display:none"></div>
+    <div class="ed-row"><button class="btn" id="edChap">Chapters for YouTube</button>
+      <span style="margin-left:auto" class="row"><button class="btn" id="cmpPrem">Export for Premiere</button><button class="btn main" id="cmpExport">Export 1920x1080</button></span></div>
+    <div id="edChapBox" style="display:none;margin-top:10px"><textarea id="edChapTxt" rows="7" style="width:100%;font:13px Consolas,monospace" readonly></textarea>
+      <div class="row tiny mute" style="margin-top:6px">From each part's title (edit titles on the right). Also saved next to the exported video. <button class="btn" id="edChapCopy" style="margin-left:auto">Copy</button></div></div>
+    <p class="tiny mute" style="margin:10px 0 0">Your edits are saved as you go. Premiere = every part as its own file + a ready-made sequence (File &rarr; Import &rarr; the .xml); zoom, text, intro/outro and music are in the 1920x1080 export.</p>
   </div>
 </section>
 
@@ -648,7 +691,7 @@ function fmtTime(t){if(!t)return'';let[h,m]=t.split(':').map(Number);const ap=h>
 function drawJob(j){
   const card=$('jobCard');if(!j.kind){card.style.display='none';return}
   card.style.display='block';
-  const titles={syncfix:'Converting the stream',compadd:'Adding to the compilation',compexport:'Exporting',coladd:'Adding to the collection',search:'Searching for keywords',fromsearch:'Cutting a match',rerender:'Re-cutting a Short',export:'Exporting for Premiere',vod:'Making Shorts',longvid:'Making a long video',inbox:'Auto-clip folder',clips:'Twitch top clips',upload:'Uploading',auto:'Auto mode',frame:'Grabbing a frame',hwtest:'Graphics card test'};
+  const titles={syncfix:'Converting the stream',compadd:'Adding to the compilation',compaddrange:'Adding a part',compexport:'Exporting',coladd:'Adding to the collection',search:'Searching for keywords',fromsearch:'Cutting a match',rerender:'Re-cutting a Short',export:'Exporting for Premiere',vod:'Making Shorts',longvid:'Making a long video',inbox:'Auto-clip folder',clips:'Twitch top clips',upload:'Uploading',auto:'Auto mode',frame:'Grabbing a frame',hwtest:'Graphics card test'};
   $('jobTitle').textContent=(titles[j.kind]||'Working')+(j.running?'...':'');
   $('jobPct').textContent=j.running?j.pct+'%':'';
   $('bar').className='bar'+(j.ok===false?' err':(j.ok?' done':''));$('bar').firstElementChild.style.width=(j.ok?100:j.pct)+'%';
@@ -663,6 +706,7 @@ function drawJob(j){
     if(j.ok&&j.kind==='upload'){loadPlan()}
     if(j.ok&&j.kind==='export'){toast('<b>Exported for Premiere.</b><br><span class="tiny">'+esc(S.settings.export_folder||S.default_export)+'</span>');loadPlan()}
     if(j.ok&&j.kind==='search'){loadSearches(true)}
+    if(j.kind==='compaddrange'){loadComps();if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
     if(j.kind==='compadd'){addingNow={};loadComps();if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
     if(j.kind==='coladd'){colAdding={};loadCols();if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
     if(j.ok&&j.kind==='compexport'){loadComps();loadCols();const f=S.settings.export_folder||S.default_export;
@@ -1101,7 +1145,7 @@ $('inbLayout').onchange=()=>inbSet('watch_layout',$('inbLayout').value);
 setInterval(()=>{if(!document.hidden&&$('make').classList.contains('on'))inbLoad()},4000);inbLoad();
 
 // ---------- compilations ----------
-let CMP=null,CMPS=[],cmpCur=null,cmpStopAt=null,cmpQueue=null,crashWords='';
+let CMP=null,CMPS=[],cmpCur=null,crashWords='';
 try{cmpCur=localStorage.getItem('pc_comp')}catch(e){}
 const mmss=t=>{t=Math.max(0,Math.round(t));return Math.floor(t/60)+':'+String(t%60).padStart(2,'0')};
 const nth=n=>n+(['th','st','nd','rd'][(n%100>10&&n%100<14)?0:Math.min(n%10,4)%4]||'th');
@@ -1112,74 +1156,176 @@ async function loadComps(){const r=await api('/api/comps');CMPS=r.comps;crashWor
   $('cmpPick').innerHTML=opts||'<option value="">No compilations yet</option>';
   $('kwComp').innerHTML=opts+'<option value="__new">+ New compilation...</option>';
   if(cmpCur){$('cmpPick').value=cmpCur;$('kwComp').value=cmpCur}
-  CMP=cmpCur?await api('/api/comp?id='+encodeURIComponent(cmpCur)).catch(()=>null):null;drawComp();
-  if(KW)markAdded()}
+  const prev=CMP&&CMP.id;CMP=cmpCur?await api('/api/comp?id='+encodeURIComponent(cmpCur)).catch(()=>null):null;
+  if(!CMP||CMP.id!==prev){ED.sel=CMP&&CMP.moments[0]?CMP.moments[0].mid:null;ED.T=0;edStop(true)}
+  drawComp();if(KW)markAdded()}
 async function newComp(){const name=prompt('Name for the new compilation:',`GTA crashes vol. ${CMPS.length+1}`);if(!name)return null;
   const c=await api('/api/comp',{action:'new',name,goal:480});setCur(c.id);await loadComps();return c.id}
-async function cmpDo(action,extra){if(!CMP)return;CMP=await api('/api/comp',Object.assign({id:CMP.id,action},extra||{}));
-  if(action==='delete'){setCur(null);await loadComps();return}drawComp();refreshCompMenus()}
+async function cmpDo(action,extra){if(!CMP)return;const r=await api('/api/comp',Object.assign({id:CMP.id,action},extra||{}));
+  if(action==='delete'){setCur(null);CMP=null;await loadComps();return}CMP=r;
+  if(!CMP.moments.some(m=>m.mid===ED.sel))ED.sel=CMP.moments[0]?CMP.moments[0].mid:null;
+  ED.T=Math.min(ED.T,edTotal());drawComp();refreshCompMenus()}
 function refreshCompMenus(){const c=CMPS.find(x=>x.id===CMP.id);if(c){c.count=CMP.moments.length;c.name=CMP.name;
   for(const sel of [$('cmpPick'),$('kwComp')]){const o=[...sel.options].find(o=>o.value===c.id);if(o)o.textContent=`${c.name} (${c.count})`}}
   if(KW)markAdded()}
-function drawComp(){const has=!!CMP;['cmpRen','cmpDel','cmpExport','cmpPrem','cmpShuffle','cmpOldest','cmpPlayAll'].forEach(id=>$(id).disabled=!has);
+
+// ---------- the editor: player + inspector + timeline ----------
+const ED={sel:null,T:0,playing:false,cur:-1,addA:null,addB:null,media:[]};
+const edLen=m=>m.b-m.a;
+function edMap(){let t=0;return(CMP?CMP.moments:[]).map((m,i)=>{const r={m,i,start:t,len:edLen(m)};t+=r.len;return r})}
+function edTotal(){return CMP?CMP.moments.reduce((a,m)=>a+edLen(m),0):0}
+function edAt(T){const mp=edMap();for(const r of mp)if(T<r.start+r.len-0.01)return r;return mp[mp.length-1]||null}
+function edSelM(){return CMP&&CMP.moments.find(m=>m.mid===ED.sel)}
+function edBoxes(){const src=(typeof LY!=='undefined'&&LY)||S.layouts;const l=(src.layouts||[]).find(x=>x.id===src.default)||(src.layouts||[])[0]||{};
+  return{cam:l.avatar||{x:.7,y:.5,w:.3,h:.5},game:l.gameplay||{x:.15,y:0,w:.7,h:1}}}
+function edZoomCss(zoom){if(zoom!=='cam'&&zoom!=='game')return'';const b=edBoxes()[zoom],W=1920,H=1080;
+  const sa=(CMP.source_w||16)/(CMP.source_h||9);let cw,ch;if(sa>=W/H){cw=W;ch=W/sa}else{cw=H*sa;ch=H}
+  const ox=(W-cw)/2,oy=(H-ch)/2;let bw=b.w*cw,bh=b.h*ch;const cx=ox+b.x*cw+bw/2,cy=oy+b.y*ch+bh/2;
+  if(bw/bh<W/H)bw=bh*W/H;else bh=bw*H/W;bw=Math.min(bw,W);bh=Math.min(bh,H);
+  const x0=Math.min(Math.max(0,cx-bw/2),W-bw),y0=Math.min(Math.max(0,cy-bh/2),H-bh);
+  return`scale(${(W/bw).toFixed(4)}) translate(${(-x0/W*100).toFixed(3)}%,${(-y0/H*100).toFixed(3)}%)`}
+function edShow(r,ft){const v=$('cmpVid');if(!r)return;const m=r.m,T=r.start+(ft-m.a);
+  $('edTime').textContent=`${mmss(T)} / ${mmss(edTotal())}`;
+  v.style.transform=edZoomCss(m.zoom);
+  const ov=$('edOv');if(m.text&&T-r.start<4.5){ov.textContent=m.text;ov.style.display='block'}else ov.style.display='none';
+  edPlayhead(T)}
+function edPlayhead(T){ED.T=T;const r=edAt(T),tl=$('edTl');let ph=$('edPh');if(!ph){ph=document.createElement('div');ph.id='edPh';ph.className='ed-ph';tl.appendChild(ph)}
+  if(!r){ph.style.display='none';return}const el=tl.querySelector(`.blk[data-mid="${r.m.mid}"]`);if(!el){ph.style.display='none';return}
+  ph.style.display='';ph.style.left=(el.offsetLeft+Math.min(1,(T-r.start)/r.len)*el.offsetWidth-1)+'px'}
+function edLoad(r,ft,play){const v=$('cmpVid'),src=`/comp/${CMP.id}/${r.m.file}`;ED.cur=r.i;$('edEmpty').style.display='none';
+  const go=()=>{v.currentTime=ft;edShow(r,ft);if(play)v.play().catch(()=>{})};
+  if(!v.src.endsWith(src)){v.preload='auto';v.src=src;v.addEventListener('loadedmetadata',go,{once:true});v.load()}else go()}
+function edSeek(T,play){const r=edAt(T);if(!r)return;edLoad(r,r.m.a+Math.max(0,T-r.start),play)}
+function edStop(reset){const v=$('cmpVid');ED.playing=false;v.pause();$('edPlay').innerHTML='&#9654; Play';if(reset){v.removeAttribute('src');v.load();$('edEmpty').style.display='';$('edOv').style.display='none'}}
+$('edPlay').onclick=()=>{if(!CMP||!CMP.moments.length)return;if(ED.playing){edStop();return}
+  ED.playing=true;$('edPlay').innerHTML='&#10074;&#10074; Pause';if(ED.T>=edTotal()-0.05)ED.T=0;edSeek(ED.T,true)};
+$('cmpVid').addEventListener('timeupdate',()=>{if(!CMP||ED.cur<0)return;const mp=edMap(),r=mp[ED.cur];if(!r)return;const v=$('cmpVid');
+  if(v.currentTime>=r.m.b-0.03){if(ED.playing&&mp[ED.cur+1]){const n=mp[ED.cur+1];edLoad(n,n.m.a,true)}else{edShow(r,r.m.b);if(ED.playing)edStop()}return}
+  edShow(r,v.currentTime)});
+// timeline
+function drawTimeline(){const tl=$('edTl');const mp=edMap();
+  tl.innerHTML=mp.map(r=>{const m=r.m,tr=m.tr||CMP.transition||'cut',tags=[m.zoom&&m.zoom!=='full'?(m.zoom==='cam'?'cam':'game'):'',m.text?'T':'',tr!=='cut'?tr:''].filter(Boolean).join(' ');
+    return`<div class="blk${m.mid===ED.sel?' sel':''}" draggable="true" data-mid="${m.mid}" style="flex-grow:${r.len.toFixed(2)};background-image:url('/comp/${esc(CMP.id)}/${esc(m.poster)}')" title="${esc(m.title)} (${mmss(r.len)})">
+      <span class="h l" data-h="a"></span><span class="h r" data-h="b"></span>${tags?`<span class="tg">${esc(tags)}</span>`:''}<span class="lb">${r.i+1} &middot; ${mmss(r.len)}</span></div>`}).join('')+
+    `<div class="blk add" id="edAddBtn" title="Add a part from the stream">+ Add</div>`;
+  tl.querySelectorAll('.blk[data-mid]').forEach(el=>{const mid=el.dataset.mid;
+    el.addEventListener('click',e=>{if(e.target.classList.contains('h'))return;ED.sel=mid;const r=edMap().find(x=>x.m.mid===mid);
+      const f=Math.min(1,Math.max(0,(e.clientX-el.getBoundingClientRect().left)/el.offsetWidth));const was=ED.playing;
+      tl.querySelectorAll('.blk').forEach(b=>b.classList.toggle('sel',b.dataset.mid===mid));drawInsp();edSeek(r.start+f*r.len,was)});
+    el.addEventListener('contextmenu',async e=>{e.preventDefault();edStop();await cmpDo('remove',{mid});toast('Part removed. <b>Undo</b> brings it back.')});
+    el.addEventListener('dragstart',e=>{if(ED.dragH){e.preventDefault();return}el.classList.add('drag');e.dataTransfer.setData('text/plain',mid)});
+    el.addEventListener('dragend',()=>el.classList.remove('drag'));
+    el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('over')});
+    el.addEventListener('dragleave',()=>el.classList.remove('over'));
+    el.addEventListener('drop',async e=>{e.preventDefault();el.classList.remove('over');const from=e.dataTransfer.getData('text/plain');if(!from||from===mid)return;
+      const ids=CMP.moments.map(q=>q.mid),fi=ids.indexOf(from),ti=ids.indexOf(mid);ids.splice(fi,1);ids.splice(ti,0,from);await cmpDo('order',{order:ids})});
+    el.querySelectorAll('.h').forEach(h=>h.addEventListener('pointerdown',e=>edTrimStart(e,el,mid,h.dataset.h)))});
+  $('edAddBtn').onclick=edAddOpen;edPlayhead(ED.T)}
+function edTrimStart(e,el,mid,side){e.preventDefault();e.stopPropagation();const m=CMP.moments.find(x=>x.mid===mid);if(!m)return;
+  edStop();ED.dragH=true;el.draggable=false;const x0=e.clientX,a0=m.a,b0=m.b,spp=edLen(m)/el.offsetWidth;let na=a0,nb=b0;
+  const lb=el.querySelector('.lb'),idx=CMP.moments.indexOf(m)+1;
+  const mv=ev=>{const d=(ev.clientX-x0)*spp;if(side==='a')na=Math.min(Math.max(0,a0+d),b0-1);else nb=Math.max(Math.min(m.dur,b0+d),a0+1);
+    lb.textContent=`${idx} · ${mmss(nb-na)}`;el.style.flexGrow=(nb-na).toFixed(2);$('edTime').textContent=`${side==='a'?'Start':'End'} ${(side==='a'?na-(m.a0??a0):nb-(m.b0??b0))>=0?'+':''}${(side==='a'?na-(m.a0??a0):nb-(m.b0??b0)).toFixed(1)} s`};
+  const up=async()=>{window.removeEventListener('pointermove',mv);window.removeEventListener('pointerup',up);ED.dragH=false;el.draggable=true;
+    if(Math.abs(na-a0)<0.05&&Math.abs(nb-b0)<0.05){drawTimeline();return}
+    if((side==='a'&&a0+0.01>=0&&na<=0.001)||(side==='b'&&nb>=m.dur-0.001))toast("That's as far as this part goes (each part keeps 5 seconds extra on each side).");
+    await cmpDo('trim',{mid,a:+na.toFixed(2),b:+nb.toFixed(2)});const r=edMap().find(x=>x.m.mid===mid);if(r)edSeek(side==='a'?r.start:Math.max(r.start,r.start+r.len-3),false)};
+  window.addEventListener('pointermove',mv);window.addEventListener('pointerup',up)}
+// inspector (the selected part)
+const sgn=v=>(v>=0?'+':'−')+Math.abs(v).toFixed(v%1?1:0)+' s';
+function drawInsp(){const box=$('edInsp'),m=edSelM();
+  if(!m){box.innerHTML='<div class="mute">Pick a part on the timeline.</div>';return}
+  const k=CMP.moments.indexOf(m)+1,tr=m.tr||'',zoom=m.zoom||'full',st=m.stream_t!=null?` &middot; ${mmss(m.stream_t)} in the stream`:'';
+  box.innerHTML=`<b>Part ${k}</b><span class="tiny mute">${st} &middot; ${mmss(edLen(m))}</span>
+    <div class="k">Title (used for chapters)</div><input type="text" id="inTitle" value="${esc(m.title||'')}">
+    <div class="k">Trim: start ${sgn(m.a-(m.a0??m.a))} / end ${sgn(m.b-(m.b0??m.b))}</div>
+    <div class="row"><span class="tiny mute">Start</span><button class="btn sm" data-t="a,-1">-1s</button><button class="btn sm" data-t="a,1">+1s</button>
+      <span class="tiny mute" style="margin-left:8px">End</span><button class="btn sm" data-t="b,-1">-1s</button><button class="btn sm" data-t="b,1">+1s</button></div>
+    <div class="k">Into the next part</div><span class="seg" id="inTr"><button data-v="">Default (${esc(CMP.transition||'cut')})</button><button data-v="cut">Cut</button><button data-v="flash">Flash</button><button data-v="fade">Fade</button></span>
+    <div class="k">Text on screen (first few seconds)</div><input type="text" id="inText" maxlength="120" placeholder="He really tried it" value="${esc(m.text||'')}">
+    <div class="k">Zoom</div><span class="seg" id="inZoom"><button data-v="full">Full</button><button data-v="cam">Peanut cam</button><button data-v="game">Gameplay</button></span>`;
+  box.querySelectorAll('#inTr button').forEach(b=>b.classList.toggle('on',b.dataset.v===tr));
+  box.querySelectorAll('#inZoom button').forEach(b=>b.classList.toggle('on',b.dataset.v===zoom));
+  box.querySelectorAll('#inTr button').forEach(b=>b.onclick=()=>cmpDo('moment',{mid:m.mid,tr:b.dataset.v}));
+  box.querySelectorAll('#inZoom button').forEach(b=>b.onclick=async()=>{await cmpDo('moment',{mid:m.mid,zoom:b.dataset.v});edSeek(edMap().find(x=>x.m.mid===m.mid).start,false)});
+  $('inTitle').onchange=()=>cmpDo('moment',{mid:m.mid,title:$('inTitle').value});
+  $('inText').onchange=async()=>{await cmpDo('moment',{mid:m.mid,text:$('inText').value});edSeek(edMap().find(x=>x.m.mid===m.mid).start,false)};
+  box.querySelectorAll('[data-t]').forEach(b=>b.onclick=async()=>{const[s,d]=b.dataset.t.split(','),mm=edSelM();const a=s==='a'?mm.a+(+d):mm.a,bb=s==='b'?mm.b+(+d):mm.b;
+    if(a<0||bb>mm.dur){toast("That's as far as this part goes (each part keeps 5 seconds extra on each side).");return}if(bb-a<1)return;
+    await cmpDo('trim',{mid:mm.mid,a,b:bb});const r=edMap().find(x=>x.m.mid===mm.mid);edSeek(s==='a'?r.start:Math.max(r.start,r.start+r.len-3),false)})}
+function drawComp(){const has=!!CMP;['cmpRen','cmpDel','cmpExport','cmpPrem','cmpShuffle','cmpOldest','edPlay','edSplit','edDel','edChap'].forEach(id=>$(id).disabled=!has);
   $('cmpGoal').disabled=!has;
-  if(!has){$('cmpLen').textContent='0:00';$('cmpBar').firstElementChild.style.width='0';$('cmpLeft').textContent='';$('cmpCount').textContent='';
-    $('cmpList').innerHTML='<div class="empty">Start a compilation with <b>New compilation</b>, then use <b>+ Add to compilation</b> on keyword-search results (Make Shorts tab). Tip: the <b>Crash words</b> button fills in GTA crash words.</div>';return}
-  const len=CMP.moments.reduce((a,m)=>a+m.b-m.a,0),goal=CMP.goal||480;
+  if(!has){$('cmpLen').textContent='0:00';$('cmpBar').firstElementChild.style.width='0';$('cmpLeft').textContent='';$('edUndo').disabled=true;
+    $('edTl').innerHTML='<div class="empty" style="flex:1">Make a long video on the Make Shorts tab (Make: Long video), or start one with <b>New compilation</b> and use <b>+ Add to compilation</b> on keyword-search results.</div>';
+    $('edInsp').innerHTML='';return}
+  const len=edTotal(),goal=CMP.goal||480;
   $('cmpGoal').value=Math.round(goal/60);$('cmpLen').textContent=mmss(len);
   $('cmpBar').className='cmp-bar'+(len>=goal?' done':'');$('cmpBar').firstElementChild.style.width=Math.min(100,len/goal*100)+'%';
-  $('cmpLeft').textContent=len>=goal?`Goal of ${mmss(goal)} reached`:`goal ${mmss(goal)} - add about ${mmss(goal-len)} more`;
-  $('cmpCount').textContent=`${CMP.moments.length} moment${CMP.moments.length===1?'':'s'}`;
+  $('cmpLeft').textContent=len>=goal?`Goal of ${mmss(goal)} reached · ${CMP.moments.length} parts`:`goal ${mmss(goal)} - add about ${mmss(goal-len)} more · ${CMP.moments.length} parts`;
+  $('edUndo').disabled=!CMP.undo;$('edUndo').textContent=CMP.undo?`Undo (${CMP.undo})`:'Undo';
   document.querySelectorAll('#cmpTr button').forEach(b=>b.classList.toggle('on',b.dataset.v===(CMP.transition||'cut')));
   document.querySelectorAll('#cmpNum button').forEach(b=>b.classList.toggle('on',b.dataset.v===(CMP.numbers?'1':'0')));
-  const list=$('cmpList');
-  if(!CMP.moments.length){list.innerHTML='<div class="empty">No moments yet. Run a keyword search on the Make Shorts tab and press <b>+ Add to compilation</b> on the good ones.</div>';return}
-  list.innerHTML=CMP.moments.map((m,k)=>`<div class="mo" draggable="true" data-mid="${m.mid}"><span class="num" title="Drag to reorder">${k+1}</span>
-    <img src="/comp/${esc(CMP.id)}/${esc(m.poster)}" alt="">
-    <div class="tt"><b title="${esc(m.title)}">${esc(m.title)}</b><span class="tiny mute">${esc(m.stream_date||'')} stream &middot; ${m.kind==='chat'?'chat: ':''}${esc(m.query)} &middot; ${mmss(m.b-m.a)}</span></div>
-    <span class="grp"><span class="k">Start</span><button class="btn" data-x="a,-1">-1s</button><button class="btn" data-x="a,1">+1s</button></span>
-    <span class="grp"><span class="k">End</span><button class="btn" data-x="b,-1">-1s</button><button class="btn" data-x="b,1">+1s</button></span>
-    <button class="btn" data-x="play">&#9654; Preview</button><button class="btn" data-x="up">Up</button><button class="btn" data-x="down">Down</button><button class="btn no" data-x="rm">Remove</button></div>`).join('');
-  list.querySelectorAll('.mo').forEach(row=>{const mid=row.dataset.mid,m=()=>CMP.moments.find(x=>x.mid===mid);
-    row.querySelectorAll('[data-x]').forEach(b=>b.onclick=async()=>{const x=b.dataset.x,mm=m(),i=CMP.moments.indexOf(mm);
-      if(x==='play'){cmpPlay([mm]);return}
-      if(x==='rm'){if(!confirm('Remove this moment from the compilation?'))return;await cmpDo('remove',{mid});return}
-      if(x==='up'||x==='down'){const j=x==='up'?i-1:i+1;if(j<0||j>=CMP.moments.length)return;const o=CMP.moments.map(q=>q.mid);[o[i],o[j]]=[o[j],o[i]];await cmpDo('order',{order:o});return}
-      const[k,d]=x.split(',');const a=k==='a'?mm.a+(+d):mm.a,bb=k==='b'?mm.b+(+d):mm.b;
-      if(a<0||bb>mm.dur){toast('That\'s as far as this moment goes. (Each moment keeps 5 seconds extra on each side.)');return}
-      if(bb-a<1)return;await cmpDo('trim',{mid,a,b:bb});if(k==='a')cmpPlay([m()],true);else cmpPlay([m()],false,true)});
-    row.addEventListener('dragstart',e=>{row.classList.add('drag');e.dataTransfer.setData('text/plain',mid)});
-    row.addEventListener('dragend',()=>row.classList.remove('drag'));
-    row.addEventListener('dragover',e=>{e.preventDefault();row.classList.add('over')});
-    row.addEventListener('dragleave',()=>row.classList.remove('over'));
-    row.addEventListener('drop',async e=>{e.preventDefault();row.classList.remove('over');const from=e.dataTransfer.getData('text/plain');if(!from||from===mid)return;
-      const o=CMP.moments.map(q=>q.mid).filter(q=>q!==from);o.splice(o.indexOf(mid)+(CMP.moments.findIndex(q=>q.mid===from)<CMP.moments.findIndex(q=>q.mid===mid)?1:0),0,from);await cmpDo('order',{order:o})})})}
-// preview: one moment, or every moment in order (Play all); nothing plays until a button is pressed
-function cmpPlay(list,startOnly,endOnly){if(!list.length)return;cmpQueue=list.slice();$('cmpPlayer').style.display='block';cmpNext(startOnly,endOnly);
-  $('cmpPlayer').scrollIntoView({behavior:'smooth',block:'nearest'})}
-function cmpNext(startOnly,endOnly){const v=$('cmpVid'),m=cmpQueue&&cmpQueue.shift();
-  document.querySelectorAll('.mo').forEach(r=>r.classList.toggle('on',!!m&&r.dataset.mid===m.mid));
-  if(!m){v.pause();cmpStopAt=null;$('cmpNow').textContent='';return}
-  const k=CMP.moments.findIndex(x=>x.mid===m.mid)+1;$('cmpNow').textContent=`Moment ${k}: ${m.title}`;
-  const src=`/comp/${CMP.id}/${m.file}`,from=endOnly?Math.max(m.a,m.b-3):m.a;cmpStopAt=startOnly?Math.min(m.b,m.a+3):m.b;
-  const go=()=>{v.currentTime=from;v.play().catch(()=>{})};
-  if(!v.src.endsWith(src)){v.preload='auto';v.src=src;v.addEventListener('loadedmetadata',go,{once:true});v.load()}else go()}
-$('cmpVid').addEventListener('timeupdate',()=>{if(cmpStopAt!==null&&$('cmpVid').currentTime>=cmpStopAt){cmpStopAt=null;
-  if(cmpQueue&&cmpQueue.length)cmpNext();else{$('cmpVid').pause();document.querySelectorAll('.mo.on').forEach(r=>r.classList.remove('on'))}}});
-$('cmpStop').onclick=()=>{cmpQueue=null;cmpStopAt=null;$('cmpVid').pause();$('cmpPlayer').style.display='none';document.querySelectorAll('.mo.on').forEach(r=>r.classList.remove('on'))};
-$('cmpPlayAll').onclick=()=>{if(CMP)cmpPlay(CMP.moments)};
-$('cmpPick').onchange=()=>{setCur($('cmpPick').value);$('cmpStop').click();loadComps()};
+  $('edTime').textContent=`${mmss(ED.T)} / ${mmss(len)}`;
+  drawTimeline();drawInsp();edMediaDraw()}
+$('edSplit').onclick=async()=>{if(!CMP)return;const r=edAt(ED.T);if(!r)return;const ft=r.m.a+(ED.T-r.start);
+  if(ft<r.m.a+0.5||ft>r.m.b-0.5){toast('Move the playhead inside a part first (not right at its edge).');return}
+  edStop();await cmpDo('split',{mid:r.m.mid,t:+ft.toFixed(2)});ED.sel=CMP.moments[r.i+1].mid;drawComp()};
+$('edDel').onclick=async()=>{const m=edSelM();if(!m)return;edStop();await cmpDo('remove',{mid:m.mid});toast('Part removed. <b>Undo</b> brings it back.')};
+$('edUndo').onclick=async()=>{edStop();await cmpDo('undo')};
+document.addEventListener('keydown',e=>{if(!$('comps').classList.contains('on')||/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))return;
+  if(e.key==='s'||e.key==='S'){e.preventDefault();$('edSplit').click()}
+  else if(e.key===' '){e.preventDefault();$('edPlay').click()}
+  else if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();$('edUndo').click()}
+  else if(e.key==='Delete'){e.preventDefault();$('edDel').click()}});
+// + Add a part from the stream
+function edAddOpen(){if(!CMP)return;if(!CMP.source_file){toast('+ Add works on long videos made on the Make Shorts tab. For this one, use <b>+ Add to compilation</b> on keyword-search results.');return}
+  if(!CMP.source_ok){toast("The stream this was made from was already cleaned up, so new parts can't be added. Make the long video again to get it back.");return}
+  edStop();ED.addA=ED.addB=null;$('edAdd').style.display='';const v=$('edSrc'),src=`/comp_source/${CMP.id}`;
+  if(!v.src.endsWith(src)){v.preload='metadata';v.src=src}
+  const sel=edSelM();$('edAddWhere').textContent=sel?` - goes after part ${CMP.moments.indexOf(sel)+1}`:' - goes at the end';
+  if(sel&&sel.stream_t!=null)v.addEventListener('loadedmetadata',()=>{v.currentTime=Math.max(0,sel.stream_t-(CMP.source_offset||0)+edLen(sel))},{once:true});
+  edMarks();$('edAdd').scrollIntoView({behavior:'smooth',block:'nearest'})}
+function edMarks(){const off=CMP.source_offset||0,f=t=>t==null?'-':mmss(off+t);
+  $('edMarks').textContent=`Start ${f(ED.addA)} · End ${f(ED.addB)}`+(ED.addA!=null&&ED.addB!=null?` (${mmss(ED.addB-ED.addA)})`:'')}
+$('edAddX').onclick=()=>{$('edSrc').pause();$('edAdd').style.display='none'};
+$('edMarkA').onclick=()=>{ED.addA=$('edSrc').currentTime;if(ED.addB!=null&&ED.addB<=ED.addA)ED.addB=null;edMarks()};
+$('edMarkB').onclick=()=>{ED.addB=$('edSrc').currentTime;if(ED.addA!=null&&ED.addB<=ED.addA)ED.addA=null;edMarks()};
+$('edAddGo').onclick=async()=>{if(ED.addA==null||ED.addB==null||ED.addB-ED.addA<1){toast('Mark a start and an end first (at least 1 second apart).');return}
+  const sel=edSelM();const r=await api('/api/run',{kind:'compaddrange',comp:CMP.id,start:+ED.addA.toFixed(2),end:+ED.addB.toFixed(2),after:sel?sel.mid:''});
+  $('edSrc').pause();$('edAdd').style.display='none';lastJobKey='running';
+  toast(r.queued?'<b>In line:</b> the part is added when the current job finishes.':'<b>Adding the part...</b>');poll()};
+// intro / outro / music + chapters
+async function edMediaLoad(){try{ED.media=(await api('/api/editor_media')).items}catch(e){ED.media=[]}edMediaDraw()}
+function edMediaDraw(){if(!CMP)return;const vids=ED.media.filter(x=>x.kind==='video'),mus=ED.media.filter(x=>x.kind==='music');
+  const opt=(list,cur)=>'<option value="">None</option>'+list.map(x=>`<option value="${esc(x.name)}"${x.name===cur?' selected':''}>${esc(x.name)} (${mmss(x.dur)})</option>`).join('');
+  $('edIntro').innerHTML=opt(vids,CMP.intro);$('edOutro').innerHTML=opt(vids,CMP.outro);$('edMusic').innerHTML=opt(mus,CMP.music);
+  const vol=CMP.music_volume??15;$('edVol').value=vol;$('edVolV').textContent=vol+'%';$('edVolBox').style.display=CMP.music?'':'none'}
+$('edIntro').onchange=()=>cmpDo('media',{intro:$('edIntro').value});
+$('edOutro').onchange=()=>cmpDo('media',{outro:$('edOutro').value});
+$('edMusic').onchange=()=>cmpDo('media',{music:$('edMusic').value});
+$('edVol').oninput=()=>$('edVolV').textContent=$('edVol').value+'%';
+$('edVol').onchange=()=>cmpDo('media',{music_volume:+$('edVol').value});
+$('edMediaUp').onclick=()=>$('edMediaFile').click();
+$('edMediaFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;toast(`Uploading <b>${esc(f.name)}</b>...`);
+  const r=await fetch('/api/editor_media_upload?name='+encodeURIComponent(f.name),{method:'POST',body:f});let j={};try{j=await r.json()}catch(x){}
+  if(!r.ok){toast(esc(j.error||'The upload didn\'t work.'));return}await edMediaLoad();toast(`<b>${esc(j.name)}</b> is ready - pick it as the intro, outro or music.`)};
+$('edChap').onclick=async()=>{if(!CMP)return;const box=$('edChapBox');if(box.style.display!=='none'){box.style.display='none';return}
+  const r=await api('/api/comp_chapters?id='+encodeURIComponent(CMP.id));
+  $('edChapTxt').value=r.text||'YouTube needs at least 3 chapters, each 10 seconds or longer. Add more parts (or longer ones) first.';box.style.display=''};
+$('edChapCopy').onclick=()=>{navigator.clipboard.writeText($('edChapTxt').value).then(()=>toast('Chapters copied.'),()=>{$('edChapTxt').select();document.execCommand('copy');toast('Chapters copied.')})};
+$('cmpPick').onchange=()=>{setCur($('cmpPick').value);edStop(true);$('edAdd').style.display='none';loadComps()};
 $('cmpNew').onclick=newComp;
 $('cmpRen').onclick=()=>{const n=prompt('New name:',CMP.name);if(n)cmpDo('settings',{name:n})};
-$('cmpDel').onclick=()=>{if(confirm(`Delete "${CMP.name}" and its ${CMP.moments.length} moments? (Videos you already exported stay.)`))cmpDo('delete')};
+$('cmpDel').onclick=()=>{if(confirm(`Delete "${CMP.name}" and its ${CMP.moments.length} parts? (Videos you already exported stay.)`))cmpDo('delete')};
 $('cmpGoal').onchange=()=>{const m=+$('cmpGoal').value;if(m>0)cmpDo('settings',{goal:m*60})};
 $('cmpShuffle').onclick=()=>cmpDo('shuffle');$('cmpOldest').onclick=()=>cmpDo('oldest');
 document.querySelectorAll('#cmpTr button').forEach(b=>b.onclick=()=>cmpDo('settings',{transition:b.dataset.v}));
 document.querySelectorAll('#cmpNum button').forEach(b=>b.onclick=()=>cmpDo('settings',{numbers:b.dataset.v==='1'}));
-async function cmpExport(premiere){if(!CMP||!CMP.moments.length){toast('Add some moments first.');return}
+async function cmpExport(premiere){if(!CMP||!CMP.moments.length){toast('Add some parts first.');return}
   const r=await api('/api/run',{kind:'compexport',comp:CMP.id,premiere});lastJobKey='running';
   toast(r.queued?'<b>In line:</b> the export starts when the current job finishes.':'<b>Exporting...</b> progress shows on the Make Shorts tab.');poll()}
 $('cmpExport').onclick=()=>cmpExport(false);$('cmpPrem').onclick=()=>cmpExport(true);
+edMediaLoad();
 // keyword search side: Crash words, "+ Add to compilation", "Added (4th)"
 $('kwCrash').onclick=()=>{const w=crashWords||'crash, crashed, wreck, my car, flip, flipped, oh no';const cur=$('kwWords').value.trim();
   $('kwWords').value=cur&&!cur.includes(w)?cur+', '+w:w;$('kwChat').checked=true;$('kwSimilar').checked=true;

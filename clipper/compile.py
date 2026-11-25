@@ -86,8 +86,14 @@ def get(cid):
 
 
 def info(cid):
-    c = get(cid)
-    return dict(c, length=round(_length(c), 1))
+    return _view(get(cid))
+
+
+def _view(c):
+    """What the page gets back: the compilation + its length, how many Undo steps, and whether + Add can work."""
+    src = c.get("source_file")
+    return dict(c, length=round(_length(c), 1), undo=len(load_json(_hist_path(c["id"]), []) or []),
+                source_ok=bool(src and Path(src).is_file()))
 
 
 def new(name, goal=480, kind="compilation"):
@@ -103,8 +109,41 @@ def new(name, goal=480, kind="compilation"):
     return c
 
 
+UNDO_KEEP = 40
+ZOOMS = ("full", "cam", "game")
+EDITS = ("remove", "trim", "order", "shuffle", "oldest", "split", "moment", "settings", "media")
+
+
+def _hist_path(cid):
+    return _path(cid).parent / "history.json"
+
+
+def _snapshot(c):
+    return {k: c.get(k) for k in ("moments", "transition", "numbers", "intro", "outro", "music", "music_volume")}
+
+
+def _push_history(cid, c):
+    h = load_json(_hist_path(cid), []) or []
+    h.append(json.loads(json.dumps(_snapshot(c))))
+    save_json(_hist_path(cid), h[-UNDO_KEEP:])
+
+
+def _gc(cid, c):
+    """Delete moment files nothing uses any more - not the moments now, and not any step Undo can go back to."""
+    used = set()
+    for snap in [c] + (load_json(_hist_path(cid), []) or []):
+        for m in snap.get("moments") or []:
+            used.update(m.get(k) for k in ("file", "vfile", "poster") if m.get(k))
+    for f in _path(cid).parent.glob("m_*"):
+        if f.name not in used:
+            safe_unlink(f)
+    for f in _path(cid).parent.glob("v_*"):
+        if f.name not in used:
+            safe_unlink(f)
+
+
 def edit(cid, action, body):
-    """Quick changes from the Compilations tab (no ffmpeg)."""
+    """Changes from the Compilations editor (no ffmpeg). Every change can be undone (Undo)."""
     f = _path(cid)
     c = get(cid)
     ms = c["moments"]
@@ -112,6 +151,17 @@ def edit(cid, action, body):
     if action == "delete":
         shutil.rmtree(f.parent, ignore_errors=True)
         return None
+    if action == "undo":
+        h = load_json(_hist_path(cid), []) or []
+        if not h:
+            return _view(c)
+        c.update(h.pop())
+        save_json(_hist_path(cid), h)
+        save_json(f, c)
+        _gc(cid, c)
+        return _view(c)
+    if action in EDITS and not (action == "settings" and set(body) <= {"id", "action", "name", "goal"}):
+        _push_history(cid, c)
     if action == "settings":
         if "name" in body:
             c["name"] = str(body["name"]).strip()[:60] or c["name"]
@@ -126,16 +176,43 @@ def edit(cid, action, body):
     elif action == "remove":
         m = find()
         if m:
-            ms.remove(m)
-            for k in ("file", "vfile", "poster"):
-                if m.get(k):
-                    safe_unlink(f.parent / m[k])
+            ms.remove(m)                       # its files go once Undo can't bring it back (_gc)
+    elif action == "split":
+        m = find()
+        t = float(body.get("t", -1))
+        if m and m["a"] + 0.5 < t < m["b"] - 0.5:
+            two = json.loads(json.dumps(m))
+            two["mid"] = uuid.uuid4().hex[:8]
+            two["a"], m["b"] = round(t, 2), round(t, 2)
+            ms.insert(ms.index(m) + 1, two)
+    elif action == "moment":
+        m = find()
+        if m:
+            if "title" in body:
+                m["title"] = str(body["title"]).strip()[:100]
+            if "text" in body:
+                m["text"] = str(body["text"]).strip()[:120]
+            if "tr" in body:                   # "" = follow the compilation's default
+                if body["tr"] in TRANSITIONS:
+                    m["tr"] = body["tr"]
+                else:
+                    m.pop("tr", None)
+            if body.get("zoom") in ZOOMS:
+                m["zoom"] = body["zoom"]
+    elif action == "media":
+        for k in ("intro", "outro", "music"):
+            if k in body:
+                c[k] = Path(str(body[k] or "")).name
+        if "music_volume" in body:
+            c["music_volume"] = max(0, min(100, int(float(body["music_volume"]))))
     elif action == "trim":
         m = find()
         if m:
             a = min(max(0.0, float(body.get("a", m["a"]))), m["dur"])
             b = min(max(0.0, float(body.get("b", m["b"]))), m["dur"])
             if b - a >= 1:
+                m.setdefault("a0", m["a"])
+                m.setdefault("b0", m["b"])
                 m["a"], m["b"] = round(a, 2), round(b, 2)
     elif action == "order":
         pos = {mid: i for i, mid in enumerate(body.get("order") or [])}
@@ -145,7 +222,9 @@ def edit(cid, action, body):
     elif action == "oldest":
         ms.sort(key=lambda m: (m.get("stream_date", ""), m.get("stream_t", 0)))
     save_json(f, c)
-    return dict(c, length=round(_length(c), 1))
+    if action == "remove":
+        _gc(cid, c)
+    return _view(c)
 
 
 def _enc(cfg, quality=18):
@@ -220,6 +299,33 @@ def add_moment(cfg, cid, sid, idx):
         "added": dt.datetime.now().isoformat(timespec="seconds")})
     save_json(f, c)
     progress(100, f"Added to {c['name']} ({len(c['moments'])} moments, {_mmss(_length(c))})")
+
+
+def add_range(cfg, cid, start, end, after=None):
+    """+ Add in the editor: copy start..end (seconds in the source file) of the compilation's source in as a new
+    moment, after the moment `after` (or at the end)."""
+    c = get(cid)
+    src = Path(c.get("source_file") or "")
+    if not src.is_file():
+        raise SystemExit("[!] The stream this was made from was already cleaned up, so new parts can't be added. "
+                         "Make the long video again to get it back.")
+    start, end = float(start), float(end)
+    if end - start < 1:
+        raise SystemExit("[!] Mark a part at least 1 second long.")
+    progress(20, "Copying the new part")
+    mid, name, poster, ca, fdur = copy_range(cfg, _path(cid).parent, src, start, end)
+    off = float(c.get("source_offset") or 0)
+    m = {"mid": mid, "file": name, "poster": poster, "title": f"Added part at {_mmss(off + start)}", "query": "added",
+         "kind": "added", "stream": c.get("source_link") or c.get("made_from", ""), "stream_date": c.get("created", "")[:10],
+         "stream_t": round(off + start, 2), "a": round(start - ca, 2), "b": round(min(fdur, end - ca), 2),
+         "dur": round(fdur, 2), "added": dt.datetime.now().isoformat(timespec="seconds")}
+    c = get(cid)                       # re-read: the page may have changed it while this ran
+    _push_history(cid, c)
+    ms = c["moments"]
+    i = next((k + 1 for k, x in enumerate(ms) if x["mid"] == after), len(ms))
+    ms.insert(i, m)
+    save_json(_path(cid), c)
+    progress(100, f"Part added ({_mmss(end - start)}) - {len(ms)} moments, {_mmss(_length(c))}")
 
 
 def add_short(cfg, cid, job, clip_id):
@@ -334,8 +440,121 @@ def _unique(path):
     return p
 
 
+MEDIA = ROOT / "data" / "editor_media"       # the owner's intro/outro clips and music, shared by every compilation
+TEXT_SEC = 4.5                                # on-screen text shows for the first few seconds of a moment
+
+
+def _layout_boxes():
+    from .util import DATA
+    ly = load_json(DATA / "layouts.json", {}) or {}
+    cur = next((x for x in ly.get("layouts", []) if x.get("id") == ly.get("default")), None) or \
+        (ly.get("layouts") or [{}])[0]
+    return cur.get("avatar") or {"x": 0.7, "y": 0.5, "w": 0.3, "h": 0.5}, \
+        cur.get("gameplay") or {"x": 0.15, "y": 0.0, "w": 0.7, "h": 1.0}
+
+
+def _zoom_filter(c, zoom, W=1920, H=1080):
+    """crop+scale for Peanut cam / Gameplay, from the default layout's boxes (fractions of the stream picture)."""
+    if zoom not in ("cam", "game"):
+        return ""
+    box = _layout_boxes()[0 if zoom == "cam" else 1]
+    sa = (c.get("source_w") or 16) / (c.get("source_h") or 9)
+    if sa >= W / H:
+        cw, ch = W, W / sa
+    else:
+        cw, ch = H * sa, H
+    ox, oy = (W - cw) / 2, (H - ch) / 2
+    bx, by, bw, bh = ox + box["x"] * cw, oy + box["y"] * ch, box["w"] * cw, box["h"] * ch
+    cx, cy = bx + bw / 2, by + bh / 2
+    if bw / bh < W / H:
+        bw = bh * W / H
+    else:
+        bh = bw * H / W
+    bw, bh = min(bw, W), min(bh, H)
+    x0 = min(max(0, cx - bw / 2), W - bw)
+    y0 = min(max(0, cy - bh / 2), H - bh)
+    ev = lambda v: int(v) // 2 * 2  # noqa: E731
+    return f",crop={ev(bw)}:{ev(bh)}:{ev(x0)}:{ev(y0)},scale={W}:{H}:flags=lanczos,setsar=1"
+
+
+def _text_png(text, path, W=1920, H=1080):
+    """The moment's on-screen text: big white letters with a black edge, low on the screen, on a soft dark bar."""
+    from PIL import Image, ImageDraw, ImageFont
+    font = ImageFont.truetype(str(Path(__file__).parent / "fonts" / "BarlowCondensed-BlackItalic.ttf"), 96)
+    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    words, lines, line = text.split(), [], ""
+    for w in words:
+        t = (line + " " + w).strip()
+        if d.textlength(t, font=font) > W - 320 and line:
+            lines.append(line)
+            line = w
+        else:
+            line = t
+    lines.append(line)
+    lines = lines[:2]
+    lh = 104
+    y = H - 150 - lh * len(lines)
+    width = max(d.textlength(x, font=font) for x in lines)
+    d.rounded_rectangle([(W - width) / 2 - 40, y - 18, (W + width) / 2 + 40, y + lh * len(lines) + 22], 18,
+                        fill=(10, 10, 12, 150))
+    for i, x in enumerate(lines):
+        d.text((W / 2, y + i * lh), x, font=font, fill=(255, 255, 255, 255), anchor="ma", stroke_width=6,
+               stroke_fill=(0, 0, 0, 255))
+    img.save(path)
+
+
+def _norm_piece(cfg, src, out, a=None, b=None):
+    """Intro / outro clip -> 1920x1080 60 fps piece (silent audio added when the clip has none)."""
+    has_audio = bool(subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index",
+                                     "-of", "csv=p=0", str(src)], capture_output=True, text=True).stdout.strip())
+    cmd = ["ffmpeg", "-v", "error", "-y"] + (["-ss", f"{a:.3f}", "-t", f"{b - a:.3f}"] if a is not None else []) + \
+        ["-i", str(src)]
+    if not has_audio:
+        cmd += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
+    cmd += ["-map", "0:v:0", "-map", "0:a:0" if has_audio else "1:a:0", "-vf", NORM, "-r", str(FPS)] + \
+        (["-shortest"] if not has_audio else []) + _enc(cfg) + ["-pix_fmt", "yuv420p", "-fps_mode", "cfr"] + AUDIO + [str(out)]
+    subprocess.run(cmd, check=True)
+    return out
+
+
+def chapters(c, lens=None, intro_len=None):
+    """YouTube chapters ("0:00 Title" lines). YouTube needs the first at 0:00, 3+ chapters, each 10 s or longer -
+    short moments are folded into the one before."""
+    ms = c["moments"]
+    if intro_len is None:                         # a preview before export: the intro file's own length
+        intro = MEDIA / c["intro"] if c.get("intro") else None
+        try:
+            intro_len = probe(intro)[0] if intro and intro.is_file() else 0.0
+        except RuntimeError:
+            intro_len = 0.0
+    if lens is None:
+        lens = [_src(c, m)[2] - _src(c, m)[1] for m in ms]
+        fades = [(m.get("tr") or c.get("transition")) == "fade" for m in ms[:-1]]
+        lens = [x - (FADE if k < len(fades) and fades[k] else 0) for k, x in enumerate(lens)]
+    t, out = intro_len, []
+    if intro_len >= 10:                           # a short intro just goes into the first chapter
+        out.append((0.0, "Intro"))
+    for m, L in zip(ms, lens):
+        title = (m.get("title") or "").strip() or f"Moment {len(out) + 1}"
+        if not out or t - out[-1][0] >= 10:
+            out.append((t, title[:80]))
+        t += L
+    if out:
+        out[0] = (0.0, out[0][1])
+    if len(out) < 3:
+        return ""
+    return "\n".join(f"{_hhmmss(x)} {title}" for x, title in out) + "\n"
+
+
+def _hhmmss(t):
+    t = int(t)
+    return f"{t // 3600}:{t % 3600 // 60:02d}:{t % 60:02d}" if t >= 3600 else f"{t // 60}:{t % 60:02d}"
+
+
 def export_video(cfg, cid):
-    """One 16:9 video of every moment in order, with the chosen transition."""
+    """One 16:9 video: intro, every moment in order (its own zoom, text and transition into the next), outro,
+    and the music bed under it all. Writes a chapters .txt next to it for the YouTube description."""
     c = get(cid)
     ms = c["moments"]
     if not ms:
@@ -347,52 +566,103 @@ def export_video(cfg, cid):
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir()
     try:
-        pieces = []
+        pieces, joins = [], []          # joins[k] = how piece k goes into piece k+1
+        intro = MEDIA / c["intro"] if c.get("intro") else None
+        outro = MEDIA / c["outro"] if c.get("outro") else None
+        intro_len = 0.0
+        if intro and intro.is_file():
+            progress(1, "Preparing the intro")
+            pieces.append(_norm_piece(cfg, intro, tmp / "intro.mp4"))
+            intro_len = probe(pieces[-1])[0]
+            joins.append("cut")
         n = len(ms)
         for k, m in enumerate(ms, 1):
-            progress(2 + 80 * (k - 1) / n, f"Preparing clip {k} of {n}")
+            progress(2 + 75 * (k - 1) / n, f"Preparing clip {k} of {n}")
             name, a, b, _, W, H = _src(c, m)
             src = _path(cid).parent / name
             cmd = ["ffmpeg", "-v", "error", "-y", "-ss", f"{a:.3f}", "-t", f"{b - a:.3f}", "-i", str(src)]
             _, sw, sh = probe(src)
             if (sw, sh) == (W, H):
-                vf = "[0:v]setpts=PTS-STARTPTS"
+                vf = "[0:v]setpts=PTS-STARTPTS" + (_zoom_filter(c, m.get("zoom")) if (W, H) == (1920, 1080) else "")
             else:                                  # a vertical Short in a 16:9 montage: blurred sides
                 vf = (f"[0:v]setpts=PTS-STARTPTS,split[x][y];[x]scale={W}:{H}:force_original_aspect_ratio=increase,"
                       f"crop={W}:{H},boxblur=22:2,eq=brightness=-0.15[bg];[y]scale=-2:{H}[fg];"
                       f"[bg][fg]overlay=(W-w)/2:0,setsar=1")
-            if c.get("transition") == "flash" and k > 1:
+            prev_tr = (ms[k - 2].get("tr") or c.get("transition")) if k > 1 else None
+            if prev_tr == "flash":
                 vf += ",fade=t=in:st=0:d=0.25:color=white"
+            nxt = 1
+            if m.get("text"):
+                _text_png(m["text"], tmp / f"t{k}.png", W, H)
+                show = min(TEXT_SEC, b - a)
+                cmd += ["-loop", "1", "-framerate", str(FPS), "-t", f"{show:.2f}", "-i", str(tmp / f"t{k}.png")]
+                vf += (f"[w0];[{nxt}:v]format=rgba,fade=t=in:st=0.15:d=0.3:alpha=1,"
+                       f"fade=t=out:st={max(0.5, show - 0.4):.2f}:d=0.4:alpha=1[tx];[w0][tx]overlay=0:0:eof_action=pass")
+                nxt += 1
             if c.get("numbers"):
                 bw, bh = _badge(f"#{k}", tmp / f"b{k}.rgba")
                 cmd += ["-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{bw}x{bh}", "-i", str(tmp / f"b{k}.rgba")]
-                vf += f"[v0];[v0][1:v]overlay=60:60:enable='lt(t,2.5)':format=auto,format=yuv420p[v]"
-            else:
-                vf += ",format=yuv420p[v]"
+                vf += f"[v0];[v0][{nxt}:v]overlay=60:60:enable='lt(t,2.5)':format=auto"
+            vf += ",format=yuv420p[v]"
             p = tmp / f"p{k:03d}.mp4"
             subprocess.run(cmd + ["-filter_complex", vf, "-map", "[v]", "-map", "0:a:0?", "-af", "asetpts=PTS-STARTPTS",
                                   "-r", str(FPS)] + _enc(cfg) + ["-pix_fmt", "yuv420p", "-fps_mode", "cfr"] + AUDIO +
                            [str(p)], check=True)
             pieces.append(p)
-        progress(85, "Joining the moments")
-        if c.get("transition") == "fade" and len(pieces) > 1:
-            lens = [probe(p)[0] for p in pieces]
+            joins.append(m.get("tr") or c.get("transition") or "cut")
+        if outro and outro.is_file():
+            progress(78, "Preparing the outro")
+            if joins:
+                joins[-1] = "cut"
+            pieces.append(_norm_piece(cfg, outro, tmp / "outro.mp4"))
+        joins = joins[:len(pieces) - 1]
+        lens = [probe(p)[0] for p in pieces]
+        progress(82, "Joining the moments")
+        joined = tmp / "joined.mp4"
+        if "fade" in joins:
             cmd = ["ffmpeg", "-v", "error", "-y"]
             for p in pieces:
                 cmd += ["-i", str(p)]
-            fc, v, a, off = "", "0:v", "0:a", 0.0
+            # xfade needs both sides on the same timebase + frame rate (concat's output isn't), so normalise everything
+            fc = "".join(f"[{k}:v]settb=AVTB,fps={FPS}[i{k}];" for k in range(len(pieces)))
+            v, a_, total = "i0", "0:a", lens[0]
             for k in range(1, len(pieces)):
-                off += lens[k - 1] - FADE
-                fc += (f"[{v}][{k}:v]xfade=transition=fade:duration={FADE}:offset={off:.3f}[v{k}];"
-                       f"[{a}][{k}:a]acrossfade=d={FADE}[a{k}];")
-                v, a = f"v{k}", f"a{k}"
-            subprocess.run(cmd + ["-filter_complex", fc.rstrip(";"), "-map", f"[{v}]", "-map", f"[{a}]"] + _enc(cfg) +
-                           ["-pix_fmt", "yuv420p"] + AUDIO + ["-movflags", "+faststart", str(out)], check=True)
+                if joins[k - 1] == "fade":
+                    fc += (f"[{v}][i{k}]xfade=transition=fade:duration={FADE}:offset={total - FADE:.3f}[v{k}];"
+                           f"[{a_}][{k}:a]acrossfade=d={FADE}[a{k}];")
+                    total += lens[k] - FADE
+                else:
+                    fc += f"[{v}][{a_}][i{k}][{k}:a]concat=n=2:v=1:a=1[c{k}][a{k}];[c{k}]settb=AVTB,fps={FPS}[v{k}];"
+                    total += lens[k]
+                v, a_ = f"v{k}", f"a{k}"
+            subprocess.run(cmd + ["-filter_complex", fc.rstrip(";"), "-map", f"[{v}]", "-map", f"[{a_}]"] + _enc(cfg) +
+                           ["-pix_fmt", "yuv420p", "-r", str(FPS)] + AUDIO + ["-movflags", "+faststart", str(joined)], check=True)
         else:
             lst = tmp / "list.txt"
             lst.write_text("".join(f"file '{p.name}'\n" for p in pieces), encoding="utf-8")
             subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst.name, "-c", "copy",
-                            "-movflags", "+faststart", str(out)], check=True, cwd=tmp)
+                            "-movflags", "+faststart", joined.name], check=True, cwd=tmp)
+        music = MEDIA / c["music"] if c.get("music") else None
+        if music and music.is_file():
+            progress(92, "Adding the music")
+            vol = (c.get("music_volume", 15) or 0) / 100
+            total = probe(joined)[0]
+            fo = max(0.0, total - 3)
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(joined), "-stream_loop", "-1", "-i", str(music),
+                            "-filter_complex", f"[1:a]volume={vol:.3f},afade=t=in:d=2,afade=t=out:st={fo:.2f}:d=3,"
+                            f"atrim=0:{total:.3f}[m];[0:a][m]amix=inputs=2:duration=first:normalize=0[a]",
+                            "-map", "0:v", "-map", "[a]", "-c:v", "copy"] + AUDIO + ["-movflags", "+faststart", str(out)],
+                           check=True)
+        else:
+            shutil.move(str(joined), str(out))
+        # chapters from the real piece lengths
+        first = 1 if intro_len else 0
+        mlens = [lens[first + j] - (FADE if first + j < len(joins) and joins[first + j] == "fade" else 0)
+                 for j in range(len(ms))]
+        ch = chapters(c, mlens, intro_len)
+        if ch:
+            out.with_name(out.stem + " - chapters.txt").write_text(
+                "Paste these into the YouTube description:\n\n" + ch, encoding="utf-8")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     print(f"  exported: {out}")
@@ -468,7 +738,9 @@ def export_premiere(cfg, cid):
     (folder / "How to open in Premiere.txt").write_text(
         "In Premiere Pro: File > Import, pick the .xml file in this folder.\n"
         "You get a sequence with every moment already cut in order. Each clip has a few extra seconds\n"
-        "on both ends, so you can drag the edges out if a moment needs more room.\n", encoding="utf-8")
+        "on both ends, so you can drag the edges out if a moment needs more room.\n"
+        "Zoom, on-screen text, intro/outro and music from the editor are only in the MP4 export - add them in Premiere.\n",
+        encoding="utf-8")
     print(f"  exported: {folder}")
     c = get(cid)
     c["premiere_to"] = str(folder)

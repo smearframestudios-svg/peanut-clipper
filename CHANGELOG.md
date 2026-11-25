@@ -1,5 +1,14 @@
 # What's new
 
+## 1.16.0
+- New editor on the Compilations tab, for your long videos and compilations. It has a player, a timeline of parts, and the settings of the part you picked.
+- Timeline: drag parts to reorder, drag the yellow edges to trim, right-click to remove. Split at playhead (or the S key), Delete part, and Undo (Ctrl+Z) for the last 40 changes.
+- Each part: its own title, the way it goes into the next part (Cut, Flash or Fade), text on screen for the first few seconds, and zoom (Full, Peanut cam or Gameplay, from your default layout's boxes). The player shows the zoom and text before you export.
+- + Add: scrub the whole stream and mark a start and end to add a new part (long videos made on Make Shorts).
+- Intro, outro and a music bed: upload a clip or a song once and pick it for any video. The music fades in and out, with its own volume.
+- Chapters for YouTube: made from the part titles. Copy them from the editor; they're also saved next to the exported video.
+- Export 1920x1080 includes all of it. Export for Premiere still gives every part on its own cut.
+
 ## 1.15.0
 - Long video (16:9): the Make Shorts box now has Make: Shorts / Long video / Both. Long video picks the strongest moments of a stream or your own video until it reaches the length you pick (8, 10, 15 or 20 minutes), keeps them in stream order, and puts them in Compilations as a 1920x1080, 60 fps video.
 - Both: makes the Shorts and the long video from the same stream in one go (it only downloads once).

@@ -130,7 +130,9 @@ def make(source, cfg, minutes=8, start=None, end=None):
         shutil.rmtree(folder, ignore_errors=True)          # no half-made long video left behind
         raise
     c = comp.get(c["id"])
-    c.update(moments=moments, made_from=source if download.is_url(source) else name, auto=True)
+    c.update(moments=moments, made_from=source if download.is_url(source) else name, auto=True,
+             source_file=str(Path(video).resolve()), source_offset=offset, source_w=sw, source_h=sh,
+             source_link=source if download.is_url(source) else "")
     save_json(comp._path(c["id"]), c)
     save_json(DATA / "last_longvid.json", {"id": c["id"]})
     short = ""

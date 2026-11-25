@@ -104,6 +104,11 @@ def main(argv=None):
     ca.add_argument("comp")
     ca.add_argument("sid")
     ca.add_argument("idx", type=int)
+    ar = sub.add_parser("compaddrange", help="copy a part of a long video's source into it")
+    ar.add_argument("comp")
+    ar.add_argument("start", type=float)
+    ar.add_argument("end", type=float)
+    ar.add_argument("--after")
     cs = sub.add_parser("coladd", help="put a Review Short into a collection")
     cs.add_argument("comp")
     cs.add_argument("job")
@@ -205,6 +210,9 @@ def main(argv=None):
     elif a.cmd == "compadd":
         from .compile import add_moment
         add_moment(cfg, a.comp, a.sid, a.idx)
+    elif a.cmd == "compaddrange":
+        from .compile import add_range
+        add_range(cfg, a.comp, a.start, a.end, a.after)
     elif a.cmd == "coladd":
         from .compile import add_short
         add_short(cfg, a.comp, a.job, a.clip)

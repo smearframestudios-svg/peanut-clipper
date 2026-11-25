@@ -40,7 +40,7 @@ class Runner:
     def running(self):
         return self.proc is not None and self.proc.poll() is None
 
-    QUEUEABLE = ("rerender", "export", "fromsearch", "compadd", "compexport", "coladd")
+    QUEUEABLE = ("rerender", "export", "fromsearch", "compadd", "compexport", "coladd", "compaddrange")
 
     def start(self, kind, args, label, section_len=None):
         """True = started, "queued" = waits for the current job, False = refused (something else is running)."""
@@ -408,6 +408,38 @@ def make_handler():
                     return self._send(200, info(parse_qs(urlparse(self.path).query)["id"][0]))
                 except SystemExit as e:
                     return self._send(404, {"error": str(e).replace("[!] ", "")})
+            if p.startswith("/comp_source/"):           # + Add in the editor: the whole source to scrub
+                from .compile import get as cget
+                try:
+                    f = Path(cget(Path(p.split("/")[2]).name).get("source_file") or "")
+                except SystemExit:
+                    f = Path("")
+                return self._file(f) if f.is_file() else self._send(404, "not found")
+            if p == "/api/editor_media":
+                from .compile import MEDIA
+                from .util import media_duration
+                items = []
+                for f in sorted(MEDIA.glob("*")) if MEDIA.is_dir() else []:
+                    if f.is_file():
+                        kind = "music" if f.suffix.lower() in (".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac") else "video"
+                        try:
+                            d = round(media_duration(f), 1)
+                        except Exception:  # noqa: BLE001
+                            d = 0
+                        items.append({"name": f.name, "kind": kind, "dur": d})
+                return self._send(200, {"items": items})
+            if p.startswith("/editor_media/"):
+                from .compile import MEDIA
+                f = MEDIA / Path(unquote(p.split("/", 2)[2])).name
+                return self._file(f) if f.is_file() else self._send(404, "not found")
+            if p == "/api/comp_chapters":
+                from urllib.parse import parse_qs
+                from .compile import chapters, get as cget
+                try:
+                    c = cget(parse_qs(urlparse(self.path).query)["id"][0])
+                except (SystemExit, KeyError):
+                    return self._send(404, {"error": "not found"})
+                return self._send(200, {"text": chapters(c)})
             if p.startswith("/comp/"):
                 from .compile import FOLDER
                 parts = p.split("/")
@@ -469,6 +501,28 @@ def make_handler():
                 ovs.append({"file": name, "position": "full", "enabled": True, "offset": 0})
                 save_settings({"overlays": ovs})
                 return self._send(200, {"ok": True})
+            if p == "/api/editor_media_upload":         # intro/outro clips + music for the editor
+                from urllib.parse import parse_qs
+                from .compile import MEDIA
+                name = re.sub(r"[^\w.\- ()]+", "_", Path(parse_qs(urlparse(self.path).query).get("name", ["clip.mp4"])[0]).name)
+                if Path(name).suffix.lower() not in VIDEO_TYPES + (".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac"):
+                    _drain(self.rfile, n)
+                    return self._send(400, {"error": "Use a video (MP4, MOV...) or a music file (MP3, WAV, M4A)."})
+                MEDIA.mkdir(parents=True, exist_ok=True)
+                dst = MEDIA / name
+                with open(dst.with_name(name + ".part"), "wb") as fh:
+                    left = n
+                    while left > 0:
+                        chunk = self.rfile.read(min(4 << 20, left))
+                        if not chunk:
+                            break
+                        fh.write(chunk)
+                        left -= len(chunk)
+                if left > 0:
+                    dst.with_name(name + ".part").unlink(missing_ok=True)
+                    return self._send(400, {"error": "The upload stopped. Try again."})
+                os.replace(dst.with_name(name + ".part"), dst)
+                return self._send(200, {"ok": True, "name": name})
             if p == "/api/video_upload":
                 from urllib.parse import parse_qs
                 name = parse_qs(urlparse(self.path).query).get("name", ["video.mp4"])[0]
@@ -586,6 +640,10 @@ def make_handler():
                 elif kind == "coladd":
                     args = ["coladd", str(body["comp"]), str(body["job"]), str(body["id"])]
                     label = "Adding the Short to the collection..."
+                elif kind == "compaddrange":
+                    args = ["compaddrange", str(body["comp"]), str(float(body["start"])), str(float(body["end"]))] + \
+                        (["--after", str(body["after"])] if body.get("after") else [])
+                    label = "Adding the part..."
                 elif kind == "compexport":
                     args = ["compexport", str(body["comp"])] + (["--premiere"] if body.get("premiere") else [])
                     label = "Exporting for Premiere..." if body.get("premiere") else "Exporting the video..."
