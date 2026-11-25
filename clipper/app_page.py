@@ -51,7 +51,8 @@ pre.log{background:#0b0c0e;border:1px solid var(--line);border-radius:9px;paddin
 .chips{display:flex;flex-wrap:wrap;gap:5px}.chip{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--panel2);color:#d6d7db}
 .chip.s{background:var(--acc);color:#111;font-weight:800}
 .clip .act{display:flex;gap:8px;margin-top:auto}.clip .act .btn{flex:1;padding:10px}
-.clip .act{flex-wrap:wrap}.clip .act .colwrap{flex-basis:100%}.clip .act .colbtn{width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clip .act{flex-wrap:wrap}.clip .act .colwrap{flex-basis:100%}.clip .act .colbtn,.clip .act .edbtn{width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.edbtn{border-color:var(--acc);color:var(--acc)}.edbtn.added{border-color:#2f6b4c;color:#9ee6bd}.colmenu .note{font-size:11px;color:var(--mute);padding:6px 10px 4px;border-top:1px solid var(--line);margin-top:4px}
 .empty{padding:70px 20px;text-align:center;color:var(--mute);border:1px dashed var(--line);border-radius:14px}
 .plan{display:flex;flex-direction:column;gap:8px;margin:12px 0}
 .plan .it{display:flex;gap:12px;align-items:center;background:var(--panel2);border-radius:10px;padding:8px}
@@ -729,7 +730,7 @@ function drawJob(j){
     if(j.ok&&j.kind==='search'){loadSearches(true)}
     if(j.kind==='compaddrange'){loadComps();if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
     if(j.kind==='compadd'){addingNow={};loadComps();if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
-    if(j.kind==='coladd'){colAdding={};loadCols();loadComps().then(()=>{if($('edShorts').style.display!=='none')edShortsOpen()});if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
+    if(j.kind==='coladd'){colAdding={};edAdding={};loadCols();loadComps().then(()=>{if($('edShorts').style.display!=='none')edShortsOpen()});if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
     if(j.kind==='compaddfile'){loadComps();if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
     if(j.ok&&j.kind==='compexport'){loadComps();loadCols();const f=S.settings.export_folder||S.default_export;
       toast('<b>'+esc(j.label)+'</b><br><span class="tiny">'+esc(f)+'</span><br><button class="link" onclick="api(\'/api/open_folder\',{path:'+esc(JSON.stringify(f)).replace(/'/g,'&#39;')+'})">Open the folder</button>')}
@@ -890,7 +891,7 @@ function markCols(){document.querySelectorAll('.colbtn').forEach(b=>{const key=b
   if(colAdding[key]){b.textContent='Adding...';b.classList.remove('added');b.disabled=true;return}
   b.disabled=false;b.textContent=inn.length?'In: '+inn.map(x=>x.name).join(', '):'+ Collection';b.classList.toggle('added',!!inn.length);b.title=inn.length?'Add to another collection':''})}
 function closeColMenu(){document.querySelectorAll('.colmenu').forEach(m=>m.remove())}
-document.addEventListener('click',async e=>{const b=e.target.closest('.colbtn');const item=e.target.closest('.colmenu button');
+document.addEventListener('click',async e=>{const b=e.target.closest('.colbtn');const item=e.target.closest('.colmenu:not(.ed) button');
   if(item){const {job,id,col}=item.dataset;closeColMenu();let target=col;
     if(target==='__new'){target=await newCol();if(!target)return}
     colAdding[job+':'+id]=true;markCols();
@@ -901,6 +902,27 @@ document.addEventListener('click',async e=>{const b=e.target.closest('.colbtn');
   const menu=document.createElement('div');menu.className='colmenu';
   menu.innerHTML=COLS.map(c=>`<button data-job="${esc(b.dataset.job)}" data-id="${esc(b.dataset.id)}" data-col="${esc(c.id)}" class="${inn.includes(c.id)?'in':''}" ${inn.includes(c.id)?'disabled':''}>${esc(c.name)} (${c.count})${inn.includes(c.id)?' - added':''}</button>`).join('')+
     `<button class="new" data-job="${esc(b.dataset.job)}" data-id="${esc(b.dataset.id)}" data-col="__new">+ New collection...</button>`;
+  b.parentElement.appendChild(menu)});
+
+// "Add to editor" on Review cards: the Short goes at the end of a compilation's timeline
+let edAdding={};
+function edButton(c){return `<span class="colwrap"><button class="btn edbtn" data-job="${esc(c.job)}" data-id="${esc(c.id)}">Add to editor</button></span>`}
+function markEd(){document.querySelectorAll('.edbtn').forEach(b=>{const key=b.dataset.job+':'+b.dataset.id,inn=CMPMEM[key]||[];
+  if(edAdding[key]){b.textContent='Adding...';b.classList.remove('added');b.disabled=true;return}
+  b.disabled=false;b.textContent=inn.length?'In editor: '+inn.map(x=>x.name).join(', '):'Add to editor';b.classList.toggle('added',!!inn.length);b.title=inn.length?'Add to another compilation':''})}
+document.addEventListener('click',async e=>{const b=e.target.closest('.edbtn');const item=e.target.closest('.colmenu.ed button');
+  if(item){const {job,id,col}=item.dataset;closeColMenu();let target=col;
+    if(target==='__new'){target=await newComp();if(!target)return}
+    edAdding[job+':'+id]=true;markEd();
+    try{const r=await api('/api/run',{kind:'coladd',comp:target,job,id});lastJobKey='running';
+      toast(r.queued?'<b>In line:</b> added when the current job finishes.':'<b>Adding the Short to the editor...</b>');poll()}
+    catch(err){delete edAdding[job+':'+id];markEd()}return}
+  if(!b)return;
+  closeColMenu();const key=b.dataset.job+':'+b.dataset.id,inn=(CMPMEM[key]||[]).map(x=>x.id);
+  const menu=document.createElement('div');menu.className='colmenu ed';
+  menu.innerHTML=CMPS.map(c=>`<button data-job="${esc(b.dataset.job)}" data-id="${esc(b.dataset.id)}" data-col="${esc(c.id)}" class="${inn.includes(c.id)?'in':''}" ${inn.includes(c.id)?'disabled':''}>${esc(c.name)} (${c.count})${inn.includes(c.id)?' - added':''}</button>`).join('')+
+    `<button class="new" data-job="${esc(b.dataset.job)}" data-id="${esc(b.dataset.id)}" data-col="__new">+ New compilation...</button>`+
+    `<div class="note">Goes at the end of the timeline, wide (16:9) with 5 s extra each side. If the stream was already cleaned up, the vertical Short goes in with blurred sides.</div>`;
   b.parentElement.appendChild(menu)});
 
 // ---------- where a Short came from in the stream (cards + History) ----------
@@ -1167,12 +1189,12 @@ $('inbLayout').onchange=()=>inbSet('watch_layout',$('inbLayout').value);
 setInterval(()=>{if(!document.hidden&&$('make').classList.contains('on'))inbLoad()},4000);inbLoad();
 
 // ---------- compilations ----------
-let CMP=null,CMPS=[],cmpCur=null,crashWords='';
+let CMP=null,CMPS=[],cmpCur=null,crashWords='',CMPMEM={};
 try{cmpCur=localStorage.getItem('pc_comp')}catch(e){}
 const mmss=t=>{t=Math.max(0,Math.round(t));return Math.floor(t/60)+':'+String(t%60).padStart(2,'0')};
 const nth=n=>n+(['th','st','nd','rd'][(n%100>10&&n%100<14)?0:Math.min(n%10,4)%4]||'th');
 function setCur(id){cmpCur=id;try{localStorage.setItem('pc_comp',id||'')}catch(e){}}
-async function loadComps(){const r=await api('/api/comps');CMPS=r.comps;crashWords=r.crash_words;
+async function loadComps(){const r=await api('/api/comps');CMPS=r.comps;crashWords=r.crash_words;CMPMEM=r.members||{};markEd();
   if(!CMPS.some(c=>c.id===cmpCur))setCur(CMPS[0]?CMPS[0].id:null);
   const opts=CMPS.map(c=>`<option value="${esc(c.id)}">${esc(c.name)} (${c.count})</option>`).join('');
   $('cmpPick').innerHTML=opts||'<option value="">No compilations yet</option>';
@@ -1421,14 +1443,14 @@ async function loadClips(){
       <div class="b"><input type="text" value="${esc(c.title)}">
       <div class="chips"><span class="chip s">score ${c.score}</span><span class="chip">${c.length}s</span>${c.reasons.map(r=>`<span class="chip">${esc(r)}</span>`).join('')}</div>
       ${streamLine(c)}
-      <div class="act"><button class="btn ed">&#9986; Edit</button><button class="btn ok">Approve</button><button class="btn no">Reject</button>${colButton(c)}<button class="btn tcbtn" style="flex-basis:100%">Title card</button></div></div>`;
+      <div class="act"><button class="btn ed">&#9986; Edit</button><button class="btn ok">Approve</button><button class="btn no">Reject</button>${colButton(c)}${edButton(c)}<button class="btn tcbtn" style="flex-basis:100%">Title card</button></div></div>`;
     const send=async st=>{await api('/api/decide',{job:c.job,id:c.id,status:st,title:el.querySelector('input').value});el.remove();poll();
       if(!grid.querySelector('.clip'))grid.innerHTML='<div class="empty" style="grid-column:1/-1">All done. Head to Upload to schedule the approved ones.</div>'};
     el.querySelector('.ok').onclick=()=>send('approved');el.querySelector('.no').onclick=()=>send('rejected');
     el.querySelector('.ed').onclick=()=>openEditor(c);
     grid.appendChild(el);
   }
-  markCols();
+  markCols();markEd();
   grid.querySelectorAll('.clip').forEach((el,k)=>{const b=el.querySelector('.tcbtn');if(b)b.onclick=()=>openTitles(data[k])});
 }
 

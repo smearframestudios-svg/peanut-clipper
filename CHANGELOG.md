@@ -1,5 +1,9 @@
 # What's new
 
+## 1.18.0
+- Add to editor: every Short in Review now has an Add to editor button. Pick a compilation (or + New compilation...) and the Short goes at the end of its timeline, wide (16:9) with 5 seconds extra on each side. If the stream was already cleaned up, the vertical Short goes in with blurred sides.
+- The button then shows which compilations the Short is in ("In editor: ...").
+
 ## 1.17.0
 - More ways to add to the editor: "+ Add" at the end of the timeline now opens a menu: From this stream, Clip from your PC, or A Short from Review.
 - Clip from your PC: pick any video file. The whole clip goes in as one part after the part you picked (1920x1080, 60 fps), and you trim it like any other part. Vertical phone clips get blurred sides.

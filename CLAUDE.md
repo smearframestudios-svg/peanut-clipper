@@ -35,7 +35,8 @@ overlays/, client_secret.json, token.json, hardware.json, processed.json, logs),
   (pipeline treats the folder like a download: fix_sync, cache, source_dir); "remove" = /api/video_upload_discard,
   Compilations editor (#edTl timeline, #edInsp, ED state in app_page): compile.edit actions split/moment(title,text,tr,zoom)/media + undo
   (compilations/<id>/history.json, 40 steps; _gc deletes files only when no step uses them), + Add menu: add_range (from this stream, `compaddrange` job, needs c.source_file), add_file (clip from the PC: /api/comp_upload -> compilations/<id>/_in/,
-  `compaddfile` job, tall clips via _blur_wide), add_short (a Review Short, `coladd` job with --after; compilations get a blurred 16:9 file when the stream is gone),
+  `compaddfile` job, tall clips via _blur_wide), add_short (a Review Short, `coladd` job with --after; compilations get a blurred 16:9 file when the stream is gone); Review cards also have
+  "Add to editor" (edButton/markEd, CMPMEM from /api/comps members = compile.memberships(kind)),
   export_video: intro/outro (_norm_piece), per-part zoom crop (_zoom_filter from the default layout) + text PNG (_text_png) + tr, xfade joins on settb=AVTB,
   music bed pass, chapters() -> '<name> - chapters.txt',
   `longvid.py` (Make: Long video / Both on the Make Shorts box: pipeline.fetch_source + check_video shared with process_vod, Detector with longer/closer

@@ -68,12 +68,12 @@ def all_comps(kind="compilation"):
     return sorted(out, key=lambda x: x["created"], reverse=True)
 
 
-def memberships():
-    """Which collections each Review Short is in: {"job:id": ["GTA fails montage", ...]}."""
+def memberships(kind="collection"):
+    """Which collections (or compilations) each Review Short is in: {"job:id": [{id, name}, ...]}."""
     out = {}
     for f in sorted(FOLDER.glob("*/comp.json")) if FOLDER.exists() else []:
         c = load_json(f)
-        if c and c.get("kind") == "collection":
+        if c and c.get("kind", "compilation") == kind:
             for m in c["moments"]:
                 out.setdefault(f"{m.get('job')}:{m.get('clip_id')}", []).append({"id": c["id"], "name": c["name"]})
     return out

@@ -421,7 +421,7 @@ def make_handler():
                 from .compile import CRASH_WORDS, all_comps, memberships
                 kind = (parse_qs(urlparse(self.path).query).get("kind") or ["compilation"])[0]
                 return self._send(200, {"comps": all_comps(kind), "crash_words": CRASH_WORDS,
-                                        "members": memberships() if kind == "collection" else {}})
+                                        "members": memberships(kind)})
             if p == "/api/comp":
                 from urllib.parse import parse_qs
                 from .compile import info
