@@ -16,6 +16,7 @@ DEFAULT_SETTINGS = {
     "live_from_start": True,
     "live_then_make": True,
     "live_in_auto": False,
+    "upload_then_make": True,
     "auto_enabled": False,
     "auto_time": "04:30",
     "auto_twitch_clips": False,

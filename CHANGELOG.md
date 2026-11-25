@@ -1,5 +1,12 @@
 # What's new
 
+## 1.13.0
+- Upload your own video: a new "From your own video" box on Make Shorts. Drop a video in (or press Choose file) and the app finds the best moments and makes Shorts, just like with a stream link.
+- Make Shorts as soon as it's in: on by default. If something else is running, it starts right after that job finishes.
+- Only use part of the video: pick a from/to time, same as for streams.
+- Your original is safe: the app works on its own copy. The copy shows in Settings > Storage as "Your video" and is cleaned up like downloads once its Shorts are done.
+- Any format: MP4, MOV, MKV, WEBM and more. Videos that would play out of sync are converted once, like YouTube streams.
+
 ## 1.12.1
 - Listen and Preview: the player now opens right under the match you clicked, so the page no longer jumps back up to the top of the list.
 

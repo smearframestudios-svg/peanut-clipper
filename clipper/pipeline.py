@@ -38,11 +38,13 @@ def process_vod(source, cfg, start=None, end=None, chat_file=None, keep=None, la
     from .util import apply_layout
     apply_layout(cfg, layout)
     name = source if download.is_url(source) else Path(source).stem
+    if not download.is_url(source) and (Path(source).parent / "title.txt").exists() and (Path(source).parent / "uploaded").exists():
+        name = (Path(source).parent / "title.txt").read_text(encoding="utf-8").strip() or name
     job, work, out = _job_dirs(cfg, name)
     print(f"\n== Job {job}")
     t0, t1, offset = start, end, 0.0
     cache = work / "transcripts.json"
-    progress(2, "Downloading the stream")
+    progress(2, "Downloading the stream" if download.is_url(source) else "Opening your video")
     dl = None
     if download.is_url(source):
         # downloads are kept per link + time range, so re-running the same command skips the download
@@ -56,6 +58,14 @@ def process_vod(source, cfg, start=None, end=None, chat_file=None, keep=None, la
         cache = dl / "transcripts.json"
     else:
         video = Path(source)
+        if not video.is_file():
+            sys.exit(f"\n[!] Can't find the video file: {video}\n")
+        if (video.parent / "uploaded").exists():
+            # uploaded on the Make Shorts tab: its own folder in work/_downloads, cleaned up like a download
+            dl = video.parent
+            cache = dl / "transcripts.json"
+            progress(5, "Getting your video ready")
+            video = download.fix_sync(video, cfg)
     try:
         duration, sw, sh = probe(video)
     except RuntimeError:
@@ -67,7 +77,8 @@ def process_vod(source, cfg, start=None, end=None, chat_file=None, keep=None, la
                  "    If you used --from / --to, the video is probably shorter than that time range.\n"
                  "    Use a full stream replay (his channel -> Live tab), or run without --from/--to.\n")
     if duration < 60:
-        sys.exit(f"\n[!] That video is only {int(duration)}s long. Use a full stream replay instead.\n")
+        tip = "Use a full stream replay instead." if download.is_url(source) else "Use a video at least a minute long."
+        sys.exit(f"\n[!] That video is only {int(duration)}s long. {tip}\n")
     n = int(duration)
     print(f"  video {sw}x{sh}, {hms(duration)} long")
 
@@ -104,7 +115,7 @@ def process_vod(source, cfg, start=None, end=None, chat_file=None, keep=None, la
             save_json(out / "clips.json", data)
             print(f"  + {len(extra)} Shorts from your saved words")
         best = best + extra
-    if dl is not None:
+    if dl is not None and download.is_url(source):
         _mark_processed(cfg, download.cache_key(source))
     shutil.rmtree(work, ignore_errors=True)
     if not best:

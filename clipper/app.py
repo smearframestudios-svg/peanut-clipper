@@ -197,6 +197,72 @@ def pick_folder(start="", title="Pick a folder"):
     return r.stdout.strip().splitlines()[-1] if r.stdout.strip() else ""
 
 
+VIDEO_TYPES = (".mp4", ".mov", ".mkv", ".webm", ".m4v", ".avi", ".ts", ".flv", ".wmv", ".mts")
+
+
+def upload_problem(name, length, cfg):
+    """Why this upload can't go ahead ('' = fine). Asked before the upload starts, and again while saving."""
+    ext = Path(name).suffix.lower()
+    if ext not in VIDEO_TYPES:
+        return f"That isn't a video file ({ext or 'no extension'}). Use MP4, MOV, MKV or WEBM."
+    if length <= 0:
+        return "That file is empty."
+    base = Path(cfg["paths"]["work_dir"]) / "_downloads"
+    base.mkdir(parents=True, exist_ok=True)
+    free = shutil.disk_usage(base).free
+    if length + (2 << 30) > free:      # keep 2 GB spare for the Shorts themselves
+        return (f"Not enough free disk space: the video is {length / 2**30:.1f} GB and the drive has "
+                f"{free / 2**30:.1f} GB free. Free some space (Settings > Storage) and try again.")
+    return ""
+
+
+def save_upload(rfile, length, name, cfg):
+    """A video the owner uploaded: copied into work/_downloads/upload-<name>-u<time>/source.<ext>, so it is
+    treated like a downloaded stream (re-cuts work, and Storage clean-up removes the copy once its Shorts are done).
+    Returns (True, {path, name, size}) or (False, message)."""
+    import datetime as dt
+    from .util import slug
+    name = Path(name).name or "video.mp4"
+    ext = Path(name).suffix.lower()
+    problem = upload_problem(name, length, cfg)
+    if problem:
+        _drain(rfile, length)
+        return False, problem
+    base = Path(cfg["paths"]["work_dir"]) / "_downloads"
+    folder = base / f"upload-{slug(Path(name).stem, 30)}-u{dt.datetime.now():%Y%m%d%H%M%S}"
+    folder.mkdir(parents=True, exist_ok=True)
+    part = folder / ("source" + ext + ".part")
+    left = length
+    try:
+        with open(part, "wb") as fh:
+            while left > 0:
+                chunk = rfile.read(min(4 << 20, left))
+                if not chunk:
+                    break
+                fh.write(chunk)
+                left -= len(chunk)
+    except OSError:
+        left = left or 1
+    if left > 0:
+        shutil.rmtree(folder, ignore_errors=True)
+        return False, "The upload stopped before the whole video came through. Try again."
+    final = folder / ("source" + ext)
+    os.replace(part, final)
+    (folder / "title.txt").write_text(Path(name).stem, encoding="utf-8")
+    (folder / "uploaded").write_text(name, encoding="utf-8")
+    return True, {"ok": True, "path": str(final), "name": name, "size": length}
+
+
+def _drain(rfile, length):
+    """Read and throw away a refused upload so the browser gets the message instead of a broken connection."""
+    left = length
+    while left > 0:
+        chunk = rfile.read(min(4 << 20, left))
+        if not chunk:
+            break
+        left -= len(chunk)
+
+
 def make_handler():
     class H(BaseHTTPRequestHandler):
         def log_message(self, *a):
@@ -380,6 +446,11 @@ def make_handler():
                 ovs.append({"file": name, "position": "full", "enabled": True, "offset": 0})
                 save_settings({"overlays": ovs})
                 return self._send(200, {"ok": True})
+            if p == "/api/video_upload":
+                from urllib.parse import parse_qs
+                name = parse_qs(urlparse(self.path).query).get("name", ["video.mp4"])[0]
+                ok, info = save_upload(self.rfile, n, name, load_config())
+                return self._send(200 if ok else 400, info if ok else {"error": info})
             raw = self.rfile.read(n) if n else b"{}"
             cfg = load_config()
             if p == "/api/client_secret":
@@ -392,6 +463,9 @@ def make_handler():
                 (DATA / "token.json").unlink(missing_ok=True)
                 return self._send(200, {"ok": True})
             body = json.loads(raw or b"{}")
+            if p == "/api/video_upload_check":
+                problem = upload_problem(str(body.get("name") or ""), int(body.get("size") or 0), cfg)
+                return self._send(400 if problem else 200, {"error": problem} if problem else {"ok": True})
             if p == "/api/run":
                 kind = body.get("kind")
                 section = None
@@ -595,7 +669,7 @@ def make_handler():
                 library.decide(cfg, body["job"], body["id"], body["status"], body.get("title"))
                 return self._send(200, {"ok": True})
             if p == "/api/setting":          # one quick setting (e.g. a checkbox), no side effects
-                allowed = {"live_from_start", "live_then_make", "live_in_auto", "export_folder", "screenshot_folder",
+                allowed = {"live_from_start", "live_then_make", "live_in_auto", "upload_then_make", "export_folder", "screenshot_folder",
                            "title_folder"}
                 save_settings({k: v for k, v in body.items() if k in allowed})
                 return self._send(200, {"ok": True})

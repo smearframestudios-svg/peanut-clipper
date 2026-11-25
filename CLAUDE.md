@@ -30,6 +30,8 @@ overlays/, client_secret.json, token.json, hardware.json, processed.json, logs),
   kind "collection": Review Shorts copied in (vfile + horizontal file with handles), vertical or horizontal montage),
   `titlecard.py` (Title Cards tab: Pillow renderer, bundled clipper/fonts/BarlowCondensed-BlackItalic.ttf (OFL), /api/titlecard/preview|draft|save),
   `storage.py` (Settings > Storage scan + auto-delete rules; library.cleanup_sources now calls storage.auto_clean; runs at start, after decide/upload/export, nightly),
+  uploads (Make Shorts > From your own video): app.save_upload streams the file into work/_downloads/upload-<name>-u<time>/source.<ext>
+  with title.txt + an `uploaded` marker, then a normal `vod` job on that path (pipeline treats the folder like a download: fix_sync, cache, source_dir),
   `live.py` (Record live: separate background process, state in data/live.json + heartbeat, stop via data/live.stop;
   saves to work/_downloads/<id>/source.mp4 + chat.live_chat.json so every other feature just works), `upload.py` (YouTube API), `auto.py` (nightly scheduled task), `updater.py`, `setup_app.py`.
 - Progress lines printed as `@@ <pct> <label>` drive the progress bar.

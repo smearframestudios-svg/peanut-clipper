@@ -60,6 +60,8 @@ pre.log{background:#0b0c0e;border:1px solid var(--line);border-radius:9px;paddin
 .set{display:grid;grid-template-columns:260px 1fr;gap:14px 20px;align-items:center}
 .set label.k{color:var(--mute)}
 .toggle{display:flex;align-items:center;gap:10px;cursor:pointer}
+.drop{border:2px dashed #3a3d46;border-radius:12px;padding:22px;text-align:center;color:var(--mute);transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--acc);background:#1f2026}.dropBig{font-size:17px;color:var(--text);font-weight:700}
 .toggle input{width:18px;height:18px;accent-color:var(--acc)}
 ol.steps{margin:6px 0 14px;padding-left:20px;color:#d6d7db}ol.steps li{margin:4px 0}
 .stage{position:relative;user-select:none;flex:1;min-width:0}.stage img{width:100%;display:block;border-radius:8px}
@@ -230,6 +232,22 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
       <label class="toggle tiny"><input type="checkbox" id="part"> Only use part of the stream</label>
       <span id="partBox" style="display:none" class="row tiny">from <input type="text" class="small" id="from" value="1:00:00"> to <input type="text" class="small" id="to" value="2:00:00"></span>
     </div>
+  </div>
+  <div class="card" id="upCard">
+    <h3>From your own video</h3>
+    <div class="drop" id="upDrop"><div class="dropBig">Drop a video here</div><div class="tiny mute">MP4, MOV, MKV, WEBM, any length</div>
+      <div style="margin-top:12px"><button class="btn" id="upPick">Choose file</button></div>
+      <input type="file" id="upFile" accept="video/*,.mp4,.mov,.mkv,.webm,.m4v,.avi,.ts,.flv,.wmv,.mts" style="display:none"></div>
+    <div id="upProg" style="display:none;margin-top:12px">
+      <div class="row tiny"><span class="mute" id="upMsg"></span><button class="link" id="upCancel" style="margin-left:auto">Cancel</button></div>
+      <div class="bar" style="margin-top:6px"><i id="upFill"></i></div></div>
+    <div id="upDone" style="display:none;margin-top:12px" class="row tiny"><span id="upDoneMsg"></span>
+      <button class="btn main" id="upMake" style="margin-left:auto">Make Shorts</button></div>
+    <div class="row tiny" style="margin-top:12px;gap:18px">
+      <label class="toggle"><input type="checkbox" id="upThenMake"> Make Shorts as soon as it's in</label>
+      <label class="toggle"><input type="checkbox" id="upPart"> Only use part of the video</label>
+      <span id="upPartBox" style="display:none" class="row tiny">from <input type="text" class="small" id="upFrom" value="0:00"> to <input type="text" class="small" id="upTo" value="10:00"></span></div>
+    <p class="tiny mute" style="margin:10px 0 0">Your video is copied into the app, so the original never gets moved or deleted. The copy is cleaned up with the other downloads once its Shorts are done (Settings &gt; Storage). Tip: for your own videos the <b>single</b> or <b>blurfit</b> layout usually looks better than the face-cam stack.</p>
   </div>
   <div class="card">
     <h3>Find by keywords</h3>
@@ -997,7 +1015,48 @@ $('lvAgain').onclick=async()=>{await api('/api/live',{action:'clear'});liveTick(
 [['liveFromStart','live_from_start'],['liveThenMake','live_then_make'],['liveInAuto','live_in_auto']].forEach(([id,k])=>
   $(id).onchange=()=>{S.settings[k]=$(id).checked;api('/api/setting',{[k]:$(id).checked})});
 function liveFill(){if(!S||!S.settings)return;$('liveFromStart').checked=S.settings.live_from_start!==false;
-  $('liveThenMake').checked=S.settings.live_then_make!==false;$('liveInAuto').checked=!!S.settings.live_in_auto}
+  $('liveThenMake').checked=S.settings.live_then_make!==false;$('liveInAuto').checked=!!S.settings.live_in_auto;
+  $('upThenMake').checked=S.settings.upload_then_make!==false}
+
+// ---------- upload your own video ----------
+const UP={xhr:null,path:'',name:'',waitMake:false};
+function upSize(b){return b>=2**30?(b/2**30).toFixed(1)+' GB':Math.max(1,Math.round(b/2**20))+' MB'}
+function upShow(which){$('upProg').style.display=which==='prog'?'':'none';$('upDone').style.display=which==='done'?'':'none';$('upDrop').style.display=which==='prog'?'none':''}
+async function upStart(f){
+  if(!f)return;if(UP.xhr){toast('Wait for the current upload to finish, or cancel it.');return}
+  try{await api('/api/video_upload_check',{name:f.name,size:f.size})}catch(e){return}
+  upShow('prog');UP.waitMake=false;$('upFill').style.width='0%';$('upMsg').innerHTML=`Uploading <b>${esc(f.name)}</b> (${upSize(f.size)})...`;
+  const x=new XMLHttpRequest();UP.xhr=x;const t0=Date.now();
+  x.upload.onprogress=e=>{if(!e.lengthComputable)return;const fr=e.loaded/e.total,el=(Date.now()-t0)/1000;
+    const left=fr>0.02?el/fr-el:null;const eta=left==null?'':left<60?`, about ${Math.max(1,Math.round(left))} s left`:`, about ${Math.round(left/60)} min left`;
+    $('upFill').style.width=(fr*100).toFixed(1)+'%';$('upMsg').innerHTML=`Uploading <b>${esc(f.name)}</b> (${upSize(f.size)}), ${Math.floor(fr*100)}%${eta}`};
+  x.onload=()=>{UP.xhr=null;let j={};try{j=JSON.parse(x.responseText)}catch(e){}
+    if(x.status!==200||!j.path){upShow('');toast(esc(j.error||'The upload didn\'t work. Try again.'));return}
+    UP.path=j.path;UP.name=j.name;upShow('done');$('upDoneMsg').innerHTML=`<b>${esc(j.name)}</b> is in (${upSize(j.size)}).`;
+    if($('upThenMake').checked)upMakeNow()};
+  x.onerror=()=>{UP.xhr=null;upShow('');toast('The upload stopped. Is Peanut Clipper still open? Try again.')};
+  x.onabort=()=>{UP.xhr=null;upShow('');toast('Upload cancelled.')};
+  x.open('POST','/api/video_upload?name='+encodeURIComponent(f.name));x.send(f)}
+async function upMakeNow(){
+  if(!UP.path)return;
+  if(S&&S.job&&S.job.running){UP.waitMake=true;$('upDoneMsg').innerHTML=`<b>${esc(UP.name)}</b> is in. Making Shorts starts when the current job finishes.`;return}
+  UP.waitMake=false;const body={kind:'vod',url:UP.path,layout:$('mkLayout').value};
+  if($('upPart').checked){body.from=$('upFrom').value;body.to=$('upTo').value}
+  try{await api('/api/run',body)}catch(e){return}
+  lastJobKey='running';toast(`<b>Making Shorts</b> from ${esc(UP.name)}. Progress shows on this tab.`);UP.path='';upShow('');poll()}
+setInterval(()=>{if(UP.waitMake&&S&&S.job&&!S.job.running)upMakeNow()},2000);
+$('upPick').onclick=()=>$('upFile').click();
+$('upFile').onchange=e=>{upStart(e.target.files[0]);e.target.value=''};
+$('upCancel').onclick=()=>{if(UP.xhr)UP.xhr.abort()};
+$('upMake').onclick=upMakeNow;
+$('upPart').onchange=e=>$('upPartBox').style.display=e.target.checked?'inline-flex':'none';
+$('upThenMake').onchange=()=>{S.settings.upload_then_make=$('upThenMake').checked;api('/api/setting',{upload_then_make:$('upThenMake').checked})};
+const upDrop=$('upDrop');
+upDrop.addEventListener('dragover',e=>{e.preventDefault();upDrop.classList.add('over')});
+upDrop.addEventListener('dragleave',()=>upDrop.classList.remove('over'));
+upDrop.addEventListener('drop',e=>{e.preventDefault();upDrop.classList.remove('over');upStart(e.dataTransfer.files[0])});
+window.addEventListener('dragover',e=>e.preventDefault());window.addEventListener('drop',e=>e.preventDefault());
+window.addEventListener('beforeunload',e=>{if(UP.xhr){e.preventDefault();e.returnValue=''}});
 
 // ---------- compilations ----------
 let CMP=null,CMPS=[],cmpCur=null,cmpStopAt=null,cmpQueue=null,crashWords='';

@@ -1,7 +1,7 @@
 """Storage: what's using space in the Peanut Clipper folder, and the auto-delete rules.
 
 Rules (Settings -> Auto-delete):
-- Downloaded streams: deleted once every Short from them is done, or after keep_source_days - including downloads
+- Downloaded streams (and the app's copy of videos uploaded on Make Shorts): deleted once every Short from them is done, or after keep_source_days - including downloads
   no Short was ever made from (failed/cancelled runs, unused live recordings, video pieces for sound-only searches).
 - The app's copy of Shorts exported to Premiere: deleted after delete_exported_days (right away if "Delete once
   they're on YouTube" is on, as before).
@@ -111,6 +111,8 @@ def _downloads(cfg):
         made = sum(len(d["clips"]) for _, d, _ in jobs)
         if piece:
             what, note = f"Part of a stream: \"{title}\"" if title else "Part of a stream", ""
+        elif (p / "uploaded").exists():
+            what, note = f"Your video: \"{title}\"" if title else "Your uploaded video", "the app's copy, your original is untouched"
         elif live_rec:
             what, note = f"Live recording: \"{title}\"" if title else "Live recording", ""
         else:
