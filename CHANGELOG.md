@@ -1,5 +1,11 @@
 # What's new
 
+## 1.17.0
+- More ways to add to the editor: "+ Add" at the end of the timeline now opens a menu: From this stream, Clip from your PC, or A Short from Review.
+- Clip from your PC: pick any video file. The whole clip goes in as one part after the part you picked (1920x1080, 60 fps), and you trim it like any other part. Vertical phone clips get blurred sides.
+- A Short from Review: pick a Short from your Review list. While its stream is still on your PC it goes in wide (16:9) with 5 seconds extra on each side; after that, the vertical Short goes in with blurred sides.
+- Undo works for all of them.
+
 ## 1.16.0
 - New editor on the Compilations tab, for your long videos and compilations. It has a player, a timeline of parts, and the settings of the part you picked.
 - Timeline: drag parts to reorder, drag the yellow edges to trim, right-click to remove. Split at playhead (or the S key), Delete part, and Undo (Ctrl+Z) for the last 40 changes.

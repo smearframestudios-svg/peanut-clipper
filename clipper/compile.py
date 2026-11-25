@@ -10,6 +10,7 @@ import random
 import re
 import shutil
 import subprocess
+import time
 import uuid
 from pathlib import Path
 from urllib.parse import quote
@@ -134,12 +135,15 @@ def _gc(cid, c):
     for snap in [c] + (load_json(_hist_path(cid), []) or []):
         for m in snap.get("moments") or []:
             used.update(m.get(k) for k in ("file", "vfile", "poster") if m.get(k))
-    for f in _path(cid).parent.glob("m_*"):
-        if f.name not in used:
-            safe_unlink(f)
-    for f in _path(cid).parent.glob("v_*"):
-        if f.name not in used:
-            safe_unlink(f)
+    now = time.time()
+    for pat in ("m_*", "v_*"):
+        for f in _path(cid).parent.glob(pat):
+            try:
+                fresh = now - f.stat().st_mtime < 600       # may be an add job still copying it in
+            except OSError:
+                continue
+            if f.name not in used and not fresh:
+                safe_unlink(f)
 
 
 def edit(cid, action, body):
@@ -328,7 +332,7 @@ def add_range(cfg, cid, start, end, after=None):
     progress(100, f"Part added ({_mmss(end - start)}) - {len(ms)} moments, {_mmss(_length(c))}")
 
 
-def add_short(cfg, cid, job, clip_id):
+def add_short(cfg, cid, job, clip_id, after=None):
     """Put a Review Short into a collection: a copy of the finished vertical Short, plus the horizontal moment
     (with handles) cut from the stream while it's still on the PC - so a montage can be either shape."""
     from .library import stream_info
@@ -340,7 +344,7 @@ def add_short(cfg, cid, job, clip_id):
     if not clip:
         raise SystemExit("[!] That Short wasn't found.")
     if any(m.get("job") == job and m.get("clip_id") == clip_id for m in c["moments"]):
-        progress(100, "Already in this collection")
+        progress(100, f"That Short is already in {c['name']}")
         return
     short = jf.parent / (clip.get("file") or "")
     if not clip.get("file") or not short.is_file():
@@ -375,10 +379,75 @@ def add_short(cfg, cid, job, clip_id):
         if subprocess.run(cmd, cwd=f.parent).returncode == 0:
             fd = probe(f.parent / name)[0]
             m.update(file=name, a=round(s - ca, 2), b=round(min(fd, e - ca), 2), dur=round(fd, 2))
+    if c.get("kind", "compilation") != "collection" and not m["file"]:
+        # the stream is gone: a 16:9 version of the vertical Short with blurred sides, so the editor treats it
+        # like any other part
+        progress(60, "Making a wide version of the Short")
+        name = f"m_{mid}.mp4"
+        _blur_wide(cfg, f.parent / vname, f.parent / name)
+        m.update(file=name, a=0.0, b=round(vdur, 2), dur=round(probe(f.parent / name)[0], 2))
     c = get(cid)
-    c["moments"].append(m)
+    if c.get("kind", "compilation") != "collection":
+        _push_history(cid, c)
+    _insert(c, m, after)
     save_json(f, c)
-    progress(100, f"Added to {c['name']} ({len(c['moments'])} Shorts, {_mmss(_length(c))})")
+    word = "Shorts" if c.get("kind") == "collection" else "parts"
+    progress(100, f"Added to {c['name']} ({len(c['moments'])} {word}, {_mmss(_length(c))})")
+
+
+def _insert(c, m, after=None):
+    ms = c["moments"]
+    ms.insert(next((k + 1 for k, x in enumerate(ms) if x["mid"] == after), len(ms)), m)
+
+
+def _blur_wide(cfg, src, out):
+    """A tall (or any non-16:9) video -> 1920x1080 60 fps with blurred, darkened copies of itself filling the sides."""
+    vf = ("[0:v]split[x][y];[x]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,boxblur=22:2,"
+          "eq=brightness=-0.15[bg];[y]scale=-2:1080[fg];[bg][fg]overlay=(W-w)/2:0,setsar=1,"
+          f"fps={FPS},format=yuv420p[v]")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(src), "-filter_complex", vf, "-map", "[v]", "-map", "0:a:0?",
+                    "-af", "aresample=async=1"] + _enc(cfg) + ["-pix_fmt", "yuv420p", "-fps_mode", "cfr"] + AUDIO +
+                   ["-movflags", "+faststart", str(out)], check=True)
+
+
+def add_file(cfg, cid, path, after=None):
+    """+ Add > Clip from your PC: the whole clip goes in as one part (1920x1080 60 fps; tall clips get blurred
+    sides). The uploaded copy is deleted afterwards - the part keeps its own file."""
+    path = Path(path)
+    folder = _path(cid).parent
+    try:
+        if not path.is_file():
+            raise SystemExit("[!] The uploaded clip is missing. Add it again.")
+        try:
+            dur, w, h = probe(path)
+        except RuntimeError:
+            raise SystemExit("[!] Couldn't read that clip - it may be damaged, or not a real video file.")
+        if dur < 0.5:
+            raise SystemExit("[!] That clip is too short.")
+        progress(15, f"Copying {path.name} in")
+        if h > w or abs(w / h - 16 / 9) > 0.15:
+            mid = uuid.uuid4().hex[:8]
+            name, poster = f"m_{mid}.mp4", f"m_{mid}.jpg"
+            _blur_wide(cfg, path, folder / name)
+            fdur = probe(folder / name)[0]
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{min(1, fdur / 2):.2f}", "-i", name, "-frames:v", "1",
+                            "-vf", "scale=320:-2", poster], check=True, cwd=folder)
+            a, b = 0.0, fdur
+        else:
+            mid, name, poster, ca, fdur = copy_range(cfg, folder, path, 0.0, dur)
+            a, b = 0.0, min(fdur, dur)
+        m = {"mid": mid, "file": name, "poster": poster, "title": path.stem.replace("_", " ")[:80], "query": "clip",
+             "kind": "clip", "stream": "", "a": round(a, 2), "b": round(b, 2), "dur": round(fdur, 2),
+             "added": dt.datetime.now().isoformat(timespec="seconds")}
+        c = get(cid)
+        _push_history(cid, c)
+        _insert(c, m, after)
+        save_json(_path(cid), c)
+        progress(100, f"Clip added ({_mmss(b - a)}) - {len(c['moments'])} parts, {_mmss(_length(c))}")
+    finally:
+        safe_unlink(path)
+        if path.parent.name == "_in" and path.parent.is_dir() and not any(path.parent.iterdir()):
+            path.parent.rmdir()
 
 
 def _mmss(t):

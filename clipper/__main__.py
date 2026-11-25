@@ -113,6 +113,11 @@ def main(argv=None):
     cs.add_argument("comp")
     cs.add_argument("job")
     cs.add_argument("clip")
+    cs.add_argument("--after")
+    af = sub.add_parser("compaddfile", help="put a video file into a compilation as one part")
+    af.add_argument("comp")
+    af.add_argument("file")
+    af.add_argument("--after")
     ce = sub.add_parser("compexport", help="export a compilation (one 16:9 video, or a Premiere folder)")
     ce.add_argument("comp")
     ce.add_argument("--premiere", action="store_true")
@@ -215,7 +220,10 @@ def main(argv=None):
         add_range(cfg, a.comp, a.start, a.end, a.after)
     elif a.cmd == "coladd":
         from .compile import add_short
-        add_short(cfg, a.comp, a.job, a.clip)
+        add_short(cfg, a.comp, a.job, a.clip, a.after)
+    elif a.cmd == "compaddfile":
+        from .compile import add_file
+        add_file(cfg, a.comp, a.file, a.after)
     elif a.cmd == "compexport":
         from .compile import export_premiere, export_video
         (export_premiere if a.premiere else export_video)(cfg, a.comp)

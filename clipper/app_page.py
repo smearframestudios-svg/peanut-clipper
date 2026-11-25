@@ -136,7 +136,15 @@ a{color:var(--blue)}
 .ed-ph{position:absolute;top:2px;bottom:6px;width:2px;background:#fff;pointer-events:none;box-shadow:0 0 0 1px #000;z-index:3}
 .ed-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
 .ed-add{background:var(--panel2);border-radius:12px;padding:14px;margin-top:12px}.ed-add video{width:100%;max-height:360px;background:#000;border-radius:8px;margin-top:8px}
-.mono{font:700 14px Consolas,monospace}.btn.sm{padding:6px 10px;font-size:12px}
+.mono{font:700 14px Consolas,monospace}
+.ed-menu{position:absolute;z-index:20;background:var(--panel2);border:1px solid #3a3d46;border-radius:10px;padding:6px;width:260px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.ed-menu button{display:block;width:100%;text-align:left;background:none;border:0;color:var(--text);padding:8px 10px;border-radius:6px;font:inherit;font-size:14px;cursor:pointer}
+.ed-menu button:hover{background:#2f3138}.ed-menu small{display:block;color:var(--mute);font-size:12px}
+.ed-shorts{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:10px;max-height:420px;overflow-y:auto}
+.ed-sh{background:#1a1b1f;border:1px solid #2d3038;border-radius:10px;padding:8px;font-size:12px}
+.ed-sh img{width:100%;aspect-ratio:9/16;object-fit:cover;border-radius:6px;background:#000;display:block}
+.ed-sh b{display:block;margin:6px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ed-sh .btn{width:100%;margin-top:6px;padding:6px}.btn.sm{padding:6px 10px;font-size:12px}
 
 .cmp-bar{height:12px;flex:1;min-width:200px;background:#0f1012;border:1px solid var(--line);border-radius:99px;overflow:hidden}
 .cmp-bar>i{display:block;height:100%;background:var(--acc)}.cmp-bar.done>i{background:var(--ok)}
@@ -378,6 +386,19 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
       <div class="ed-row"><button class="btn" id="edMarkA">Mark start</button><button class="btn" id="edMarkB">Mark end</button>
         <span class="mono" id="edMarks">Start - &middot; End -</span><button class="btn main" id="edAddGo" style="margin-left:auto">Add this part</button></div>
     </div>
+    <div id="edAddMenu" class="ed-menu" style="display:none">
+      <button data-a="stream">From this stream<small>Scrub and mark a start and end</small></button>
+      <button data-a="clip">Clip from your PC<small>MP4, MOV, MKV, WEBM</small></button>
+      <button data-a="short">A Short from Review<small>Pick from your Review list</small></button></div>
+    <input type="file" id="edClipFile" accept="video/*,.mp4,.mov,.mkv,.webm,.m4v,.avi,.ts,.flv,.wmv,.mts" style="display:none">
+    <div id="edClip" class="ed-add" style="display:none">
+      <div class="row"><b>Clip from your PC</b><span class="tiny mute" id="edClipWhere"></span><button class="link" id="edClipX" style="margin-left:auto">Cancel</button></div>
+      <div class="tiny mute" id="edClipMsg" style="margin-top:8px"></div><div class="bar" style="margin-top:6px"><i id="edClipFill"></i></div>
+      <div class="tiny mute" style="margin-top:8px">The whole clip goes in as one part (made 1920x1080, 60 fps). Trim it on the timeline like any other part. Vertical clips get blurred sides.</div></div>
+    <div id="edShorts" class="ed-add" style="display:none">
+      <div class="row"><b>A Short from Review</b><span class="tiny mute" id="edShortsWhere"></span><button class="link" id="edShortsX" style="margin-left:auto">Close</button></div>
+      <div class="tiny mute" style="margin-top:6px">Goes in wide (16:9) with 5 seconds extra on each side while the stream is still on your PC; after that, the vertical Short with blurred sides.</div>
+      <div class="ed-shorts" id="edShortsList"></div></div>
     <div class="ed-row" style="margin-top:14px"><span class="tiny mute">Between parts (unless a part says otherwise)</span>
       <span class="seg" id="cmpTr"><button data-v="cut">Cut</button><button data-v="flash">Flash</button><button data-v="fade">Fade</button></span>
       <span class="tiny mute" style="margin-left:12px">Numbers on screen</span>
@@ -691,7 +712,7 @@ function fmtTime(t){if(!t)return'';let[h,m]=t.split(':').map(Number);const ap=h>
 function drawJob(j){
   const card=$('jobCard');if(!j.kind){card.style.display='none';return}
   card.style.display='block';
-  const titles={syncfix:'Converting the stream',compadd:'Adding to the compilation',compaddrange:'Adding a part',compexport:'Exporting',coladd:'Adding to the collection',search:'Searching for keywords',fromsearch:'Cutting a match',rerender:'Re-cutting a Short',export:'Exporting for Premiere',vod:'Making Shorts',longvid:'Making a long video',inbox:'Auto-clip folder',clips:'Twitch top clips',upload:'Uploading',auto:'Auto mode',frame:'Grabbing a frame',hwtest:'Graphics card test'};
+  const titles={syncfix:'Converting the stream',compadd:'Adding to the compilation',compaddrange:'Adding a part',compaddfile:'Adding your clip',compexport:'Exporting',coladd:'Adding to the collection',search:'Searching for keywords',fromsearch:'Cutting a match',rerender:'Re-cutting a Short',export:'Exporting for Premiere',vod:'Making Shorts',longvid:'Making a long video',inbox:'Auto-clip folder',clips:'Twitch top clips',upload:'Uploading',auto:'Auto mode',frame:'Grabbing a frame',hwtest:'Graphics card test'};
   $('jobTitle').textContent=(titles[j.kind]||'Working')+(j.running?'...':'');
   $('jobPct').textContent=j.running?j.pct+'%':'';
   $('bar').className='bar'+(j.ok===false?' err':(j.ok?' done':''));$('bar').firstElementChild.style.width=(j.ok?100:j.pct)+'%';
@@ -708,7 +729,8 @@ function drawJob(j){
     if(j.ok&&j.kind==='search'){loadSearches(true)}
     if(j.kind==='compaddrange'){loadComps();if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
     if(j.kind==='compadd'){addingNow={};loadComps();if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
-    if(j.kind==='coladd'){colAdding={};loadCols();if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
+    if(j.kind==='coladd'){colAdding={};loadCols();loadComps().then(()=>{if($('edShorts').style.display!=='none')edShortsOpen()});if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
+    if(j.kind==='compaddfile'){loadComps();if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
     if(j.ok&&j.kind==='compexport'){loadComps();loadCols();const f=S.settings.export_folder||S.default_export;
       toast('<b>'+esc(j.label)+'</b><br><span class="tiny">'+esc(f)+'</span><br><button class="link" onclick="api(\'/api/open_folder\',{path:'+esc(JSON.stringify(f)).replace(/'/g,'&#39;')+'})">Open the folder</button>')}
     if(j.kind==='fromsearch'){if(KW)openSearch(KW.sid,true);
@@ -1220,7 +1242,7 @@ function drawTimeline(){const tl=$('edTl');const mp=edMap();
     el.addEventListener('drop',async e=>{e.preventDefault();el.classList.remove('over');const from=e.dataTransfer.getData('text/plain');if(!from||from===mid)return;
       const ids=CMP.moments.map(q=>q.mid),fi=ids.indexOf(from),ti=ids.indexOf(mid);ids.splice(fi,1);ids.splice(ti,0,from);await cmpDo('order',{order:ids})});
     el.querySelectorAll('.h').forEach(h=>h.addEventListener('pointerdown',e=>edTrimStart(e,el,mid,h.dataset.h)))});
-  $('edAddBtn').onclick=edAddOpen;edPlayhead(ED.T)}
+  $('edAddBtn').onclick=e=>{e.stopPropagation();edMenuOpen()};edPlayhead(ED.T)}
 function edTrimStart(e,el,mid,side){e.preventDefault();e.stopPropagation();const m=CMP.moments.find(x=>x.mid===mid);if(!m)return;
   edStop();ED.dragH=true;el.draggable=false;const x0=e.clientX,a0=m.a,b0=m.b,spp=edLen(m)/el.offsetWidth;let na=a0,nb=b0;
   const lb=el.querySelector('.lb'),idx=CMP.moments.indexOf(m)+1;
@@ -1280,7 +1302,7 @@ document.addEventListener('keydown',e=>{if(!$('comps').classList.contains('on')|
 // + Add a part from the stream
 function edAddOpen(){if(!CMP)return;if(!CMP.source_file){toast('+ Add works on long videos made on the Make Shorts tab. For this one, use <b>+ Add to compilation</b> on keyword-search results.');return}
   if(!CMP.source_ok){toast("The stream this was made from was already cleaned up, so new parts can't be added. Make the long video again to get it back.");return}
-  edStop();ED.addA=ED.addB=null;$('edAdd').style.display='';const v=$('edSrc'),src=`/comp_source/${CMP.id}`;
+  edStop();edPanels('edAdd');ED.addA=ED.addB=null;$('edAdd').style.display='';const v=$('edSrc'),src=`/comp_source/${CMP.id}`;
   if(!v.src.endsWith(src)){v.preload='metadata';v.src=src}
   const sel=edSelM();$('edAddWhere').textContent=sel?` - goes after part ${CMP.moments.indexOf(sel)+1}`:' - goes at the end';
   if(sel&&sel.stream_t!=null)v.addEventListener('loadedmetadata',()=>{v.currentTime=Math.max(0,sel.stream_t-(CMP.source_offset||0)+edLen(sel))},{once:true});
@@ -1294,6 +1316,50 @@ $('edAddGo').onclick=async()=>{if(ED.addA==null||ED.addB==null||ED.addB-ED.addA<
   const sel=edSelM();const r=await api('/api/run',{kind:'compaddrange',comp:CMP.id,start:+ED.addA.toFixed(2),end:+ED.addB.toFixed(2),after:sel?sel.mid:''});
   $('edSrc').pause();$('edAdd').style.display='none';lastJobKey='running';
   toast(r.queued?'<b>In line:</b> the part is added when the current job finishes.':'<b>Adding the part...</b>');poll()};
+// + Add menu: this stream / a clip from the PC / a Review Short
+function edAfter(){const sel=edSelM();return{mid:sel?sel.mid:'',where:sel?` - goes after part ${CMP.moments.indexOf(sel)+1}`:' - goes at the end'}}
+function edPanels(keep){for(const id of ['edAdd','edClip','edShorts'])if(id!==keep)$(id).style.display='none';$('edSrc').pause()}
+function edMenuOpen(){if(!CMP)return;const m=$('edAddMenu'),b=$('edAddBtn'),body=$('cmpBody');
+  if(m.style.display!=='none'){m.style.display='none';return}
+  body.style.position='relative';const br=b.getBoundingClientRect(),pr=body.getBoundingClientRect();
+  m.style.display='';m.style.left=Math.max(0,br.right-pr.left-260)+'px';m.style.top=(br.bottom-pr.top+6)+'px'}
+document.addEventListener('click',e=>{const m=$('edAddMenu');if(m&&m.style.display!=='none'&&!m.contains(e.target))m.style.display='none'});
+$('edAddMenu').querySelectorAll('button').forEach(b=>b.onclick=()=>{$('edAddMenu').style.display='none';edStop();
+  if(b.dataset.a==='stream'){edPanels('edAdd');edAddOpen()}else if(b.dataset.a==='clip')$('edClipFile').click();else edShortsOpen()});
+const EDC={xhr:null};
+$('edClipFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f||!CMP)return;
+  if(EDC.xhr){toast('Wait for the clip that is uploading, or cancel it.');return}
+  try{await api('/api/video_upload_check',{name:f.name,size:f.size})}catch(x){return}
+  const aft=edAfter(),cid=CMP.id;edPanels('edClip');$('edClip').style.display='';$('edClipWhere').textContent=aft.where;$('edClipFill').style.width='0%';
+  $('edClipMsg').innerHTML=`Uploading <b>${esc(f.name)}</b> (${upSize(f.size)})...`;
+  const x=new XMLHttpRequest();EDC.xhr=x;const t0=Date.now();
+  x.upload.onprogress=ev=>{if(!ev.lengthComputable)return;const fr=ev.loaded/ev.total,el=(Date.now()-t0)/1000,left=fr>0.02?el/fr-el:null;
+    $('edClipFill').style.width=(fr*100).toFixed(1)+'%';$('edClipMsg').innerHTML=`Uploading <b>${esc(f.name)}</b> (${upSize(f.size)}), ${Math.floor(fr*100)}%${left==null?'':left<60?`, about ${Math.max(1,Math.round(left))} s left`:`, about ${Math.round(left/60)} min left`}`};
+  x.onload=async()=>{EDC.xhr=null;let j={};try{j=JSON.parse(x.responseText)}catch(q){}
+    if(x.status!==200||!j.file){$('edClip').style.display='none';toast(esc(j.error||'The upload didn\'t work. Try again.'));return}
+    $('edClipMsg').innerHTML=`<b>${esc(f.name)}</b> uploaded - adding it to the timeline...`;$('edClipFill').style.width='100%';
+    const r=await api('/api/run',{kind:'compaddfile',comp:cid,file:j.file,after:aft.mid}).catch(()=>null);
+    $('edClip').style.display='none';if(!r)return;lastJobKey='running';
+    toast(r.queued?'<b>In line:</b> the clip is added when the current job finishes.':'<b>Adding your clip...</b>');poll()};
+  x.onerror=()=>{EDC.xhr=null;$('edClip').style.display='none';toast('The upload stopped. Is Peanut Clipper still open? Try again.')};
+  x.onabort=()=>{EDC.xhr=null;$('edClip').style.display='none';toast('Upload cancelled.')};
+  x.open('POST',`/api/comp_upload?id=${encodeURIComponent(cid)}&name=${encodeURIComponent(f.name)}`);x.send(f)};
+$('edClipX').onclick=()=>{if(EDC.xhr)EDC.xhr.abort();else $('edClip').style.display='none'};
+async function edShortsOpen(){edPanels('edShorts');const box=$('edShorts'),list=$('edShortsList');box.style.display='';
+  $('edShortsWhere').textContent=edAfter().where;list.innerHTML='<div class="tiny mute">Loading your Review list...</div>';
+  const cs=await api('/api/clips').catch(()=>[]);
+  const inIt=new Set(CMP.moments.filter(m=>m.job).map(m=>m.job+'/'+m.clip_id));
+  if(!cs.length){list.innerHTML='<div class="tiny mute">Nothing in Review right now. Make some Shorts first.</div>';return}
+  list.innerHTML=cs.map(c=>{const k=c.job+'/'+c.id,len=Math.round((c.end??0)-(c.start??0))||Math.round(c.length||0);
+    return`<div class="ed-sh"><img loading="lazy" src="/media/${esc(c.job)}/${esc(c.poster)}" alt=""><b title="${esc(c.title)}">${esc(c.title)}</b>
+      <span class="mute">${len?mmss(len)+' · ':''}${esc(c.stream_date||'')}</span>
+      <button class="btn${inIt.has(k)?'':' main'}" data-job="${esc(c.job)}" data-id="${esc(c.id)}"${inIt.has(k)?' disabled':''}>${inIt.has(k)?'Already in it':'Add'}</button></div>`}).join('');
+  list.querySelectorAll('button[data-job]').forEach(b=>b.onclick=async()=>{b.disabled=true;b.textContent='Adding...';
+    const r=await api('/api/run',{kind:'coladd',comp:CMP.id,job:b.dataset.job,id:b.dataset.id,after:edAfter().mid}).catch(()=>null);
+    if(!r){b.disabled=false;b.textContent='Add';return}lastJobKey='running';
+    toast(r.queued?'<b>In line:</b> the Short is added when the current job finishes.':'<b>Adding the Short...</b>');poll()})}
+$('edShortsX').onclick=()=>$('edShorts').style.display='none';
+
 // intro / outro / music + chapters
 async function edMediaLoad(){try{ED.media=(await api('/api/editor_media')).items}catch(e){ED.media=[]}edMediaDraw()}
 function edMediaDraw(){if(!CMP)return;const vids=ED.media.filter(x=>x.kind==='video'),mus=ED.media.filter(x=>x.kind==='music');

@@ -40,7 +40,7 @@ class Runner:
     def running(self):
         return self.proc is not None and self.proc.poll() is None
 
-    QUEUEABLE = ("rerender", "export", "fromsearch", "compadd", "compexport", "coladd", "compaddrange")
+    QUEUEABLE = ("rerender", "export", "fromsearch", "compadd", "compexport", "coladd", "compaddrange", "compaddfile")
 
     def start(self, kind, args, label, section_len=None):
         """True = started, "queued" = waits for the current job, False = refused (something else is running)."""
@@ -247,6 +247,27 @@ def save_upload(rfile, length, name, cfg):
     final = folder / ("source" + ext)
     os.replace(part, final)
     return True, {"ok": True, "path": str(final), "name": name, "size": length}
+
+
+def _save_stream(rfile, length, dst):
+    """Write `length` bytes of an upload to dst (via a .part file). False = the upload stopped early."""
+    part = dst.with_name(dst.name + ".part")
+    left = length
+    try:
+        with open(part, "wb") as fh:
+            while left > 0:
+                chunk = rfile.read(min(4 << 20, left))
+                if not chunk:
+                    break
+                fh.write(chunk)
+                left -= len(chunk)
+    except OSError:
+        left = left or 1
+    if left > 0:
+        part.unlink(missing_ok=True)
+        return False
+    os.replace(part, dst)
+    return True
 
 
 def _drain(rfile, length):
@@ -501,6 +522,29 @@ def make_handler():
                 ovs.append({"file": name, "position": "full", "enabled": True, "offset": 0})
                 save_settings({"overlays": ovs})
                 return self._send(200, {"ok": True})
+            if p == "/api/comp_upload":                 # + Add > Clip from your PC: lands in compilations/<id>/_in/
+                from urllib.parse import parse_qs
+                from .compile import _path as cpath
+                q = parse_qs(urlparse(self.path).query)
+                name = re.sub(r"[^\w.\- ()]+", "_", Path(q.get("name", ["clip.mp4"])[0]).name)
+                try:
+                    folder = cpath(Path(q.get("id", [""])[0]).name).parent
+                except SystemExit:
+                    folder = None
+                problem = "That compilation is gone." if not folder or not folder.is_dir() else \
+                    upload_problem(name, n, load_config())
+                if problem:
+                    _drain(self.rfile, n)
+                    return self._send(400, {"error": problem})
+                dst = folder / "_in" / name
+                dst.parent.mkdir(exist_ok=True)
+                UPLOADING["n"] += 1
+                try:
+                    ok = _save_stream(self.rfile, n, dst)
+                finally:
+                    UPLOADING["n"] -= 1
+                return self._send(200, {"ok": True, "file": name}) if ok else \
+                    self._send(400, {"error": "The upload stopped before the whole clip came through. Try again."})
             if p == "/api/editor_media_upload":         # intro/outro clips + music for the editor
                 from urllib.parse import parse_qs
                 from .compile import MEDIA
@@ -638,8 +682,14 @@ def make_handler():
                     args = ["compadd", str(body["comp"]), str(body["sid"]), str(int(body["idx"]))]
                     label = "Adding the moment to the compilation..."
                 elif kind == "coladd":
-                    args = ["coladd", str(body["comp"]), str(body["job"]), str(body["id"])]
-                    label = "Adding the Short to the collection..."
+                    args = ["coladd", str(body["comp"]), str(body["job"]), str(body["id"])] + \
+                        (["--after", str(body["after"])] if body.get("after") else [])
+                    label = "Adding the Short..."
+                elif kind == "compaddfile":
+                    from .compile import _path as cpath
+                    f = cpath(str(body["comp"])).parent / "_in" / Path(str(body["file"])).name
+                    args = ["compaddfile", str(body["comp"]), str(f)] + (["--after", str(body["after"])] if body.get("after") else [])
+                    label = "Adding your clip..."
                 elif kind == "compaddrange":
                     args = ["compaddrange", str(body["comp"]), str(float(body["start"])), str(float(body["end"]))] + \
                         (["--after", str(body["after"])] if body.get("after") else [])
