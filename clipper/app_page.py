@@ -229,6 +229,11 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
       <button class="btn main" id="go">Make Shorts</button>
       <input type="file" id="upFile" accept="video/*,.mp4,.mov,.mkv,.webm,.m4v,.avi,.ts,.flv,.wmv,.mts" style="display:none">
     </div>
+    <div class="row tiny" style="margin-top:12px;gap:10px"><span class="mute">Make</span>
+      <span class="seg" id="mkMode"><button data-v="shorts">Shorts</button><button data-v="long">Long video (16:9)</button><button data-v="both">Both</button></span>
+      <span id="mkLenBox" class="row tiny" style="gap:10px;margin-left:8px"><span class="mute">Length</span>
+        <span class="seg" id="mkLen"><button data-v="8">8 min</button><button data-v="10">10</button><button data-v="15">15</button><button data-v="20">20</button></span></span></div>
+    <div class="tiny mute" id="mkLenNote" style="margin-top:6px">Picks the strongest moments (chat spikes, loud parts, what's said) until it reaches the length, keeps them in stream order, and opens them in Compilations to trim, reorder and export (1920x1080, or for Premiere).</div>
     <div id="upPicked" class="row tiny" style="display:none;margin-top:10px"><span class="mute">Picked:</span> <b id="upName"></b> <span class="mute" id="upState"></span>
       <button class="link" id="upRemove">remove</button></div>
     <div id="upBarWrap" style="display:none;margin-top:6px"><div class="bar"><i id="upFill"></i></div></div>
@@ -643,7 +648,7 @@ function fmtTime(t){if(!t)return'';let[h,m]=t.split(':').map(Number);const ap=h>
 function drawJob(j){
   const card=$('jobCard');if(!j.kind){card.style.display='none';return}
   card.style.display='block';
-  const titles={syncfix:'Converting the stream',compadd:'Adding to the compilation',compexport:'Exporting',coladd:'Adding to the collection',search:'Searching for keywords',fromsearch:'Cutting a match',rerender:'Re-cutting a Short',export:'Exporting for Premiere',vod:'Making Shorts',inbox:'Auto-clip folder',clips:'Twitch top clips',upload:'Uploading',auto:'Auto mode',frame:'Grabbing a frame',hwtest:'Graphics card test'};
+  const titles={syncfix:'Converting the stream',compadd:'Adding to the compilation',compexport:'Exporting',coladd:'Adding to the collection',search:'Searching for keywords',fromsearch:'Cutting a match',rerender:'Re-cutting a Short',export:'Exporting for Premiere',vod:'Making Shorts',longvid:'Making a long video',inbox:'Auto-clip folder',clips:'Twitch top clips',upload:'Uploading',auto:'Auto mode',frame:'Grabbing a frame',hwtest:'Graphics card test'};
   $('jobTitle').textContent=(titles[j.kind]||'Working')+(j.running?'...':'');
   $('jobPct').textContent=j.running?j.pct+'%':'';
   $('bar').className='bar'+(j.ok===false?' err':(j.ok?' done':''));$('bar').firstElementChild.style.width=(j.ok?100:j.pct)+'%';
@@ -653,6 +658,7 @@ function drawJob(j){
   const key=j.kind+':'+j.ok;
   if(!j.running&&j.ok!==null&&lastJobKey&&lastJobKey!==key){
     if(j.ok&&['vod','clips','auto','inbox'].includes(j.kind)){toast(`<b>${esc(j.label)}</b><br><button class="link" onclick="show('review')">Go to Review</button>`)}
+    if(j.ok&&j.kind==='longvid'){toast(`<b>${esc(j.label)}</b><br><button class="link" onclick="openLastLong()">Open it in Compilations</button>`);loadComps()}
     if(j.ok&&j.kind==='frame'){initLayout(true)}
     if(j.ok&&j.kind==='upload'){loadPlan()}
     if(j.ok&&j.kind==='export'){toast('<b>Exported for Premiere.</b><br><span class="tiny">'+esc(S.settings.export_folder||S.default_export)+'</span>');loadPlan()}
@@ -678,7 +684,7 @@ $('cancel').onclick=()=>api('/api/cancel',{}).then(poll);
 $('part').onchange=e=>$('partBox').style.display=e.target.checked?'inline-flex':'none';
 $('go').onclick=async()=>{
   if(UP.file&&!UP.path){UP.makeWhenDone=true;toast('Making Shorts starts as soon as the upload finishes.');return}
-  const body={kind:'vod',url:UP.path||$('url').value,layout:$('mkLayout').value};if($('part').checked){body.from=$('from').value;body.to=$('to').value}
+  const body={kind:'vod',url:UP.path||$('url').value,layout:$('mkLayout').value,mode:S.settings.make_mode||'shorts',minutes:S.settings.long_minutes||8};if($('part').checked){body.from=$('from').value;body.to=$('to').value}
   await api('/api/run',body);lastJobKey='running';if(UP.path){UP.path='';UP.file=null;upDraw('')}poll()};
 $('goTwitch').onclick=async()=>{await api('/api/run',{kind:'clips',layout:$('mkLayout').value});lastJobKey='running';poll()};
 $('goAuto').onclick=async()=>{await api('/api/run',{kind:'auto'});lastJobKey='running';poll()};
@@ -1051,6 +1057,16 @@ srcCard.addEventListener('dragleave',e=>{if(!srcCard.contains(e.relatedTarget))s
 srcCard.addEventListener('drop',e=>{e.preventDefault();srcCard.classList.remove('over');if(e.dataTransfer.files[0])upStart(e.dataTransfer.files[0])});
 window.addEventListener('dragover',e=>e.preventDefault());window.addEventListener('drop',e=>e.preventDefault());
 window.addEventListener('beforeunload',e=>{if(UP.xhr){e.preventDefault();e.returnValue=''}});
+
+// ---------- Make: Shorts / Long video / Both ----------
+function mkDraw(){if(!S||!S.settings)return;const m=S.settings.make_mode||'shorts',len=String(S.settings.long_minutes||8);
+  document.querySelectorAll('#mkMode button').forEach(b=>b.classList.toggle('on',b.dataset.v===m));
+  document.querySelectorAll('#mkLen button').forEach(b=>b.classList.toggle('on',b.dataset.v===len));
+  $('mkLenBox').style.display=m==='shorts'?'none':'';$('mkLenNote').style.display=m==='shorts'?'none':'';
+  $('go').textContent=m==='long'?'Make long video':m==='both'?'Make both':'Make Shorts'}
+document.querySelectorAll('#mkMode button').forEach(b=>b.onclick=()=>{S.settings.make_mode=b.dataset.v;mkDraw();api('/api/setting',{make_mode:b.dataset.v})});
+document.querySelectorAll('#mkLen button').forEach(b=>b.onclick=()=>{S.settings.long_minutes=+b.dataset.v;mkDraw();api('/api/setting',{long_minutes:+b.dataset.v})});
+async function openLastLong(){const r=await api('/api/last_longvid').catch(()=>null);if(!r||!r.id)return;setCur(r.id);show('comps');await loadComps()}
 
 // ---------- auto-clip folder ----------
 let INB=null;
@@ -1634,5 +1650,5 @@ $('ovFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;$('ovMsg')
   $('ovMsg').textContent=r.ok?'Added.':'Upload failed.';e.target.value='';await poll();renderOverlays()};
 const _show=show;show=function(t){_show(t);if(t==='layout')setTimeout(renderOverlays,300)};
 
-poll().then(()=>{if(S){$('kwCpu').style.display=S.hw.gpu_speech&&S.settings.use_gpu?'none':'block';updateLayoutMenus();liveFill()}});loadSearches();loadComps();loadCols();setInterval(poll,1500);liveTick();setInterval(()=>{if(!document.hidden)liveTick()},2000);
+poll().then(()=>{if(S){$('kwCpu').style.display=S.hw.gpu_speech&&S.settings.use_gpu?'none':'block';updateLayoutMenus();liveFill();mkDraw()}});loadSearches();loadComps();loadCols();setInterval(poll,1500);liveTick();setInterval(()=>{if(!document.hidden)liveTick()},2000);
 </script></body></html>"""

@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 
@@ -16,6 +17,8 @@ DEFAULT_SETTINGS = {
     "live_from_start": True,
     "live_then_make": True,
     "live_in_auto": False,
+    "make_mode": "shorts",
+    "long_minutes": 8,
     "watch_enabled": False,
     "watch_folder": "",
     "watch_after": "move",
@@ -98,11 +101,15 @@ def load_settings():
     return s
 
 
+_SETTINGS_LOCK = threading.Lock()
+
+
 def save_settings(new):
-    s = load_settings()
-    s.update({k: v for k, v in new.items() if k in DEFAULT_SETTINGS})
-    save_json(DATA / "settings.json", s)
-    return s
+    with _SETTINGS_LOCK:          # two quick clicks on the page must not overwrite each other
+        s = load_settings()
+        s.update({k: v for k, v in new.items() if k in DEFAULT_SETTINGS})
+        save_json(DATA / "settings.json", s)
+        return s
 
 
 LAYOUT_KEYS = ("mode", "avatar", "gameplay", "top_height", "banners")

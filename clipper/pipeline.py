@@ -34,18 +34,21 @@ def _job_dirs(cfg, name):
     return job, work, out
 
 
-def process_vod(source, cfg, start=None, end=None, chat_file=None, keep=None, layout=None):
-    from .util import apply_layout
-    apply_layout(cfg, layout)
-    name = source if download.is_url(source) else Path(source).stem
-    if not download.is_url(source) and (Path(source).parent / "title.txt").exists() and (Path(source).parent / "uploaded").exists():
-        name = (Path(source).parent / "title.txt").read_text(encoding="utf-8").strip() or name
-    job, work, out = _job_dirs(cfg, name)
-    print(f"\n== Job {job}")
-    t0, t1, offset = start, end, 0.0
-    cache = work / "transcripts.json"
+def source_name(source):
+    """A readable name for a job: the link, or the uploaded video's own file name."""
+    if download.is_url(source):
+        return source
+    p = Path(source)
+    if (p.parent / "uploaded").exists() and (p.parent / "title.txt").exists():
+        return (p.parent / "title.txt").read_text(encoding="utf-8").strip() or p.stem
+    return p.stem
+
+
+def fetch_source(source, cfg, start=None, end=None, chat_file=None, cache=None):
+    """Get the video (download a link, or use a local / uploaded file). Shared by Make Shorts and Long video.
+    t0/t1 = the part to look at inside the file (None when the download already is just that part)."""
+    t0, t1, offset, dl = start, end, 0.0, None
     progress(2, "Downloading the stream" if download.is_url(source) else "Opening your video")
-    dl = None
     if download.is_url(source):
         # downloads are kept per link + time range, so re-running the same command skips the download
         dl = cfg["paths"]["work_dir"] / "_downloads" / download.cache_key(source, start, end)
@@ -66,18 +69,18 @@ def process_vod(source, cfg, start=None, end=None, chat_file=None, keep=None, la
             cache = dl / "transcripts.json"
             progress(5, "Getting your video ready")
             video = download.fix_sync(video, cfg)
-    def _drop_empty_job():
-        shutil.rmtree(work, ignore_errors=True)
-        if out.is_dir() and not any(out.iterdir()):
-            out.rmdir()
+    return {"video": video, "chat_file": chat_file, "offset": offset, "t0": t0, "t1": t1, "dl": dl, "cache": cache}
 
+
+def check_video(video, source, cleanup=None):
+    """(duration, width, height), or a plain-words stop when the video is unreadable or too short."""
     try:
         duration, sw, sh = probe(video)
     except RuntimeError:
-        _drop_empty_job()
-        bad = video
+        if cleanup:
+            cleanup()
         if download.is_url(source):
-            for f in bad.parent.glob("source.*"):
+            for f in Path(video).parent.glob("source.*"):
                 f.unlink()
         else:
             sys.exit("\n[!] Couldn't read that video - it may be damaged, or not a real video file.\n"
@@ -86,9 +89,29 @@ def process_vod(source, cfg, start=None, end=None, chat_file=None, keep=None, la
                  "    If you used --from / --to, the video is probably shorter than that time range.\n"
                  "    Use a full stream replay (his channel -> Live tab), or run without --from/--to.\n")
     if duration < 60:
-        _drop_empty_job()
+        if cleanup:
+            cleanup()
         tip = "Use a full stream replay instead." if download.is_url(source) else "Use a video at least a minute long."
         sys.exit(f"\n[!] That video is only {int(duration)}s long. {tip}\n")
+    return duration, sw, sh
+
+
+def process_vod(source, cfg, start=None, end=None, chat_file=None, keep=None, layout=None):
+    from .util import apply_layout
+    apply_layout(cfg, layout)
+    name = source_name(source)
+    job, work, out = _job_dirs(cfg, name)
+    print(f"\n== Job {job}")
+    src = fetch_source(source, cfg, start, end, chat_file, work / "transcripts.json")
+    video, chat_file, offset, t0, t1, dl, cache = (src["video"], src["chat_file"], src["offset"], src["t0"], src["t1"],
+                                                   src["dl"], src["cache"])
+
+    def _drop_empty_job():
+        shutil.rmtree(work, ignore_errors=True)
+        if out.is_dir() and not any(out.iterdir()):
+            out.rmdir()
+
+    duration, sw, sh = check_video(video, source, _drop_empty_job)
     n = int(duration)
     print(f"  video {sw}x{sh}, {hms(duration)} long")
 

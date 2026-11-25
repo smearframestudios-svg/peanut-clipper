@@ -1,5 +1,11 @@
 # What's new
 
+## 1.15.0
+- Long video (16:9): the Make Shorts box now has Make: Shorts / Long video / Both. Long video picks the strongest moments of a stream or your own video until it reaches the length you pick (8, 10, 15 or 20 minutes), keeps them in stream order, and puts them in Compilations as a 1920x1080, 60 fps video.
+- Both: makes the Shorts and the long video from the same stream in one go (it only downloads once).
+- Edit it: when it's done, press Open it in Compilations to trim, reorder or remove moments, then export one MP4 or a Premiere project. A bigger editor is coming next.
+- Fixed: two quick clicks on settings could undo each other.
+
 ## 1.14.0
 - One box for links and videos: the Make Shorts box now takes a stream link or your own video. Drop a video on it (or press Choose file) and it uploads right away. Press Make Shorts when you're ready; pressing it while the upload is still going starts as soon as it's done. This replaces the separate "From your own video" box.
 - Auto-clip folder: a new card on Make Shorts. Turn it on, and any video you put in that folder gets made into Shorts on its own, while the app is open and in the nightly auto run. They show up in Review like any other Shorts.

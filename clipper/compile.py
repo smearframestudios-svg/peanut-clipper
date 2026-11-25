@@ -160,6 +160,24 @@ NORM = (f"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow
 AUDIO = ["-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2"]
 
 
+def copy_range(cfg, folder, src, start, end):
+    """Copy start..end of a video (plus HANDLE seconds each side) into a compilation folder as 1920x1080 60 fps.
+    Returns (mid, file name, poster name, where the copy starts in src, copy length)."""
+    fdur = probe(src)[0]
+    ca, cb = max(0.0, start - HANDLE), min(fdur, end + HANDLE)
+    mid = uuid.uuid4().hex[:8]
+    name = f"m_{mid}.mp4"
+    cmd = ["ffmpeg", "-v", "error", "-y", "-ss", f"{ca:.3f}", "-i", str(src), "-t", f"{cb - ca:.3f}",
+           "-map", "0:v:0", "-map", "0:a:0?", "-vf", NORM, "-af", "aresample=async=1"] + _enc(cfg) + \
+        ["-pix_fmt", "yuv420p", "-fps_mode", "cfr"] + AUDIO + ["-movflags", "+faststart", name]
+    subprocess.run(cmd, check=True, cwd=folder)
+    fdur, _, _ = probe(Path(folder) / name)
+    poster = f"m_{mid}.jpg"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{min(fdur, start - ca + 1):.2f}", "-i", name,
+                    "-frames:v", "1", "-vf", "scale=320:-2", poster], check=True, cwd=folder)
+    return mid, name, poster, ca, fdur
+
+
 def add_moment(cfg, cid, sid, idx):
     """Copy a keyword-search match into a compilation (one quick encode)."""
     from .search import _segments_from_cache, snap
@@ -190,18 +208,7 @@ def add_moment(cfg, cid, sid, idx):
     end = min(end, start + 60)
     src, shift = match_video(cfg, data, start, end)
     progress(40, "Copying the moment")
-    fdur = probe(src)[0]
-    ca, cb = max(0.0, start - shift - HANDLE), min(fdur, end - shift + HANDLE)
-    mid = uuid.uuid4().hex[:8]
-    name = f"m_{mid}.mp4"
-    cmd = ["ffmpeg", "-v", "error", "-y", "-ss", f"{ca:.3f}", "-i", str(src), "-t", f"{cb - ca:.3f}",
-           "-map", "0:v:0", "-map", "0:a:0?", "-vf", NORM, "-af", "aresample=async=1"] + _enc(cfg) + \
-        ["-pix_fmt", "yuv420p", "-fps_mode", "cfr"] + AUDIO + ["-movflags", "+faststart", name]
-    subprocess.run(cmd, check=True, cwd=f.parent)
-    fdur, _, _ = probe(f.parent / name)
-    poster = f"m_{mid}.jpg"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{min(fdur, start - shift - ca + 1):.2f}", "-i", name,
-                    "-frames:v", "1", "-vf", "scale=320:-2", poster], check=True, cwd=f.parent)
+    mid, name, poster, ca, fdur = copy_range(cfg, f.parent, src, start - shift, end - shift)
     said = " ".join(w["w"].strip() for w in words if start <= w["s"] < end)
     title = (m["text"].split('"')[1] if m["kind"] == "chat" and '"' in m["text"] else said)[:70].strip() or m["query"]
     c = get(cid)                       # re-read: the page may have changed it while this ran

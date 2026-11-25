@@ -33,6 +33,8 @@ overlays/, client_secret.json, token.json, hardware.json, processed.json, logs),
   video files (the Make Shorts box takes a link OR a file): app.save_upload streams the file into
   work/_downloads/upload-<name>-u<time>/source.<ext> (inbox.new_upload_folder: title.txt + an `uploaded` marker), then a normal `vod` job on that path
   (pipeline treats the folder like a download: fix_sync, cache, source_dir); "remove" = /api/video_upload_discard,
+  `longvid.py` (Make: Long video / Both on the Make Shorts box: pipeline.fetch_source + check_video shared with process_vod, Detector with longer/closer
+  moments and min_score 0, pick() best until long_minutes, saved as a compilation via compile.copy_range; data/last_longvid.json for the page),
   `inbox.py` (Auto-clip folder card: settings watch_enabled/watch_folder/watch_after move|delete|keep/watch_layout; app.inbox_watcher starts
   `python -m clipper inbox --one` when idle, auto.run_auto calls inbox.run_all; state in data/inbox.json, per-file claims in data/inbox_claims/),
   `live.py` (Record live: separate background process, state in data/live.json + heartbeat, stop via data/live.stop;

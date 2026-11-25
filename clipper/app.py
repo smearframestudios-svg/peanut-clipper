@@ -73,7 +73,7 @@ class Runner:
                 _, pct, label = line.split(" ", 2)
                 self.pct, self.label = int(pct), label
                 continue
-            fm = ff.search(line) if self.kind in ("vod", "frame", "search") and self.section_len else None
+            fm = ff.search(line) if self.kind in ("vod", "frame", "search", "longvid") and self.section_len else None
             if fm:
                 done = int(fm.group(1)) * 3600 + int(fm.group(2)) * 60 + float(fm.group(3))
                 frac = min(1.0, done / self.section_len)
@@ -83,7 +83,7 @@ class Runner:
                     self.log[-1] = line
                     continue
             m = dl.search(line)
-            if m and self.kind in ("vod", "frame", "search"):
+            if m and self.kind in ("vod", "frame", "search", "longvid"):
                 p = float(m.group(1))
                 self.pct = max(self.pct, int(2 + p * 0.3))
                 self.label = f"Downloading the stream ({p:.0f}%)"
@@ -97,7 +97,7 @@ class Runner:
         if not self.ok:
             err = next((ln for ln in reversed(self.log) if ln.startswith(("[!]", "ERROR")) or "Error" in ln), "")
             self.label = (err.strip() or f"Stopped (code {code})")[:300]
-        elif self.kind not in ("vod", "search", "fromsearch", "inbox"):
+        elif self.kind not in ("vod", "search", "fromsearch", "inbox", "longvid"):
             self.pct = 100
             self.label = {"upload": "Upload finished", "frame": "Frame ready - draw the boxes below",
                           "auto": "Auto run finished", "clips": "Twitch Shorts ready to review",
@@ -345,6 +345,8 @@ def make_handler():
             if p == "/api/inbox":
                 from . import inbox
                 return self._send(200, inbox.status(load_config()))
+            if p == "/api/last_longvid":
+                return self._send(200, load_json(DATA / "last_longvid.json", {}) or {})
             if p == "/api/state":
                 return self._send(200, app_state())
             if p == "/api/clips":
@@ -517,6 +519,11 @@ def make_handler():
                     if not url:
                         return self._send(400, {"error": "Paste a stream link first."})
                     args = ["vod", url] + (["--layout", body["layout"]] if body.get("layout") else [])
+                    if body.get("mode") in ("long", "both"):     # Long video (16:9), or Shorts + long video
+                        kind = "longvid"
+                        mins = str(max(1, min(60, float(body.get("minutes") or 8))))
+                        args = ["longvid", url, "--minutes", mins] + (["--shorts"] if body["mode"] == "both" else []) + \
+                            (["--layout", body["layout"]] if body.get("layout") else [])
                     if body.get("from"):
                         args += ["--from", body["from"]]
                     if body.get("to"):
@@ -584,7 +591,7 @@ def make_handler():
                     label = "Exporting for Premiere..." if body.get("premiere") else "Exporting the video..."
                 else:
                     return self._send(400, {"error": "unknown job"})
-                started = RUNNER.start(kind, args, label, section if kind in ("vod", "search") else (8 if kind == "frame" else None))
+                started = RUNNER.start(kind, args, label, section if kind in ("vod", "search", "longvid") else (8 if kind == "frame" else None))
                 if started == "queued":
                     return self._send(200, {"ok": True, "queued": True})
                 if not started:
@@ -712,7 +719,7 @@ def make_handler():
                 library.decide(cfg, body["job"], body["id"], body["status"], body.get("title"))
                 return self._send(200, {"ok": True})
             if p == "/api/setting":          # one quick setting (e.g. a checkbox), no side effects
-                allowed = {"live_from_start", "live_then_make", "live_in_auto", "watch_enabled", "watch_folder", "watch_after", "watch_layout", "export_folder", "screenshot_folder",
+                allowed = {"live_from_start", "live_then_make", "live_in_auto", "make_mode", "long_minutes", "watch_enabled", "watch_folder", "watch_after", "watch_layout", "export_folder", "screenshot_folder",
                            "title_folder"}
                 save_settings({k: v for k, v in body.items() if k in allowed})
                 return self._send(200, {"ok": True})

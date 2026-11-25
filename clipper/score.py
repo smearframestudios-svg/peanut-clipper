@@ -52,7 +52,7 @@ class Detector:
         self.hype_re = re.compile("|".join(re.escape(t.strip()) for t in toks), re.I) if toks else None
 
     # ---------- pass 1 ----------
-    def candidates(self, n, chat, loud, t0=0, t1=None):
+    def candidates(self, n, chat, loud, t0=0, t1=None, min_score=0.5):
         d, w = self.d, self.w
         delay = int(d["chat_delay_sec"])
         rate = np.zeros(n)
@@ -99,7 +99,7 @@ class Detector:
         picks = []
         spacing = int(d["spacing_sec"])
         for p in np.argsort(-score):
-            if score[p] <= 0.5 or len(picks) >= int(d["candidates"]):
+            if score[p] <= min_score or len(picks) >= int(d["candidates"]):
                 break
             if all(abs(int(p) - q) >= spacing for q in picks):
                 picks.append(int(p))

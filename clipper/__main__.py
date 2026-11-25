@@ -47,6 +47,13 @@ def main(argv=None):
     v.add_argument("--keep", type=int)
     v.add_argument("--no-review", action="store_true")
     v.add_argument("--layout")
+    lg = sub.add_parser("longvid", help="one 16:9 video of the best moments (goes to Compilations)")
+    lg.add_argument("source")
+    lg.add_argument("--minutes", type=float, default=8)
+    lg.add_argument("--from", dest="start")
+    lg.add_argument("--to", dest="end")
+    lg.add_argument("--shorts", action="store_true", help="make Shorts from it first (Both)")
+    lg.add_argument("--layout")
     c = sub.add_parser("clips")
     c.add_argument("--hours", type=int, default=24)
     c.add_argument("--top", type=int, default=8)
@@ -141,6 +148,13 @@ def main(argv=None):
     elif a.cmd == "vod":
         from .pipeline import process_vod
         process_vod(a.source, cfg, parse_hms(a.start), parse_hms(a.end), a.chat, a.keep, a.layout)
+    elif a.cmd == "longvid":
+        from .longvid import make
+        if a.shorts:
+            from .pipeline import process_vod
+            process_vod(a.source, cfg, parse_hms(a.start), parse_hms(a.end), None, None, a.layout)
+            cfg = load_config()
+        make(a.source, cfg, a.minutes, parse_hms(a.start), parse_hms(a.end))
     elif a.cmd == "clips":
         from .pipeline import process_twitch_clips
         process_twitch_clips(cfg, a.hours, a.top, a.layout)
