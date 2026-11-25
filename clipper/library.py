@@ -315,8 +315,11 @@ def syncfix(cfg, job, cid):
 
 def clean_framing(fr):
     """A Short's own framing: style, Peanut height and the two boxes (0..1 of the stream frame)."""
-    out = {"mode": fr.get("mode") if fr.get("mode") in ("stack", "single", "blurfit") else "stack",
+    out = {"mode": fr.get("mode") if fr.get("mode") in ("stack", "single", "blurfit", "cutout") else "stack",
            "top_height": max(300, min(1600, int(fr.get("top_height", 760))))}
+    if fr.get("cut"):
+        from .util import clean_cut
+        out["cut"] = clean_cut(fr["cut"])
     for k in ("avatar", "gameplay"):
         b = fr.get(k) or {}
         w, h = (max(0.02, min(1.0, float(b.get(q, 0.5)))) for q in ("w", "h"))

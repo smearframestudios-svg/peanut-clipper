@@ -104,6 +104,10 @@ def main(argv=None):
     ca.add_argument("comp")
     ca.add_argument("sid")
     ca.add_argument("idx", type=int)
+    lc = sub.add_parser("layoutcut", help="(internal) the cut-out layout on the Layouts tab's frame")
+    lc.add_argument("layout")
+    mt = sub.add_parser("matte", help="(internal) cut-out layout matte for one Short")
+    mt.add_argument("jobfile")
     rt = sub.add_parser("roto", help="cut Peanut out of a video (Cut-out tab)")
     rt.add_argument("jobfile")
     rt.add_argument("--preview", action="store_true")
@@ -218,6 +222,20 @@ def main(argv=None):
     elif a.cmd == "compadd":
         from .compile import add_moment
         add_moment(cfg, a.comp, a.sid, a.idx)
+    elif a.cmd == "layoutcut":
+        from .render import snapshot
+        from .util import DATA, apply_layout, probe
+        apply_layout(cfg, a.layout or None)
+        frame = DATA / "calibrate.jpg"
+        if not frame.is_file():
+            sys.exit("[!] Grab a frame on the Layouts tab first.")
+        print("@@ 10 Cutting Peanut out of the frame", flush=True)
+        _, sw, sh = probe(frame)
+        snapshot(frame, 0.0, DATA / "layout_cut.png", cfg, sw, sh)
+        print("@@ 100 Cut-out layout preview ready", flush=True)
+    elif a.cmd == "matte":
+        from .roto import matte
+        matte(a.jobfile)
     elif a.cmd == "roto":
         from .roto import job
         job(cfg, a.jobfile, a.preview)

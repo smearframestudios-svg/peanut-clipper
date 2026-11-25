@@ -112,7 +112,8 @@ def save_settings(new):
         return s
 
 
-LAYOUT_KEYS = ("mode", "avatar", "gameplay", "top_height", "banners")
+LAYOUT_KEYS = ("mode", "avatar", "gameplay", "top_height", "banners", "cut")
+CUT_DEFAULT = {"what": "whole", "x": 0.3, "y": 1.0, "h": 0.5}   # cut-out layout: Peanut centre x, feet y, height (0..1 of the Short)
 
 
 def load_layouts(base=None):
@@ -150,6 +151,14 @@ def get_layout(cfg, lid=None):
     want = lid or cfg["layouts"]["default"]
     return next((l for l in lays if l["id"] == want), None) or \
         next((l for l in lays if l["id"] == cfg["layouts"]["default"]), lays[0])
+
+
+def clean_cut(c):
+    c = c or {}
+    return {"what": "head" if c.get("what") == "head" else "whole",
+            "x": max(0.0, min(1.0, float(c.get("x", CUT_DEFAULT["x"])))),
+            "y": max(0.1, min(1.0, float(c.get("y", CUT_DEFAULT["y"])))),
+            "h": max(0.1, min(1.0, float(c.get("h", CUT_DEFAULT["h"]))))}
 
 
 def apply_layout(cfg, lid=None):

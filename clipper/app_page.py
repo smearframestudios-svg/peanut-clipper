@@ -625,18 +625,25 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
   </div>
   <div class="card" id="calCard">
     <div class="row" style="margin-bottom:14px"><h3 style="margin:0" id="lyTitle">Layout</h3>
-      <span style="margin-left:auto" class="seg" id="lyMode"><button data-m="stack">Peanut over gameplay</button><button data-m="single">Gameplay only</button><button data-m="blurfit">Whole stream</button></span></div>
+      <span style="margin-left:auto" class="seg" id="lyMode"><button data-m="stack">Peanut over gameplay</button><button data-m="single">Gameplay only</button><button data-m="blurfit">Whole stream</button><button data-m="cutout">Peanut cut-out on gameplay</button></span></div>
     <div class="cal">
       <div class="stage" id="stage"><img id="cimg" draggable="false"><div class="nofr" id="noFrame">Grab a frame above to draw the boxes</div>
         <div class="box av" id="b_avatar"></div><div class="box gp" id="b_gameplay"></div></div>
       <div class="side">
         <div id="whichBox">
-          <label class="toggle"><input type="radio" name="which" value="avatar" checked> <b style="color:#ff4fb3">Peanut box</b> <span class="tiny mute">(top)</span></label>
+          <label class="toggle"><input type="radio" name="which" value="avatar" checked> <b style="color:#ff4fb3">Peanut box</b> <span class="tiny mute" id="avHint">(top)</span></label>
           <label class="toggle"><input type="radio" name="which" value="gameplay"> <b style="color:#3fa9ff" id="gpLabel">Gameplay box</b> <span class="tiny mute" id="gpHint">(bottom)</span></label>
           <p class="tiny mute" style="margin:6px 0 0">Drag on the frame to draw the selected box. Drag inside it to move it.</p>
           <label class="tiny mute">Zoom <input type="range" id="zoom" min="5" max="100" step="1" style="width:100%"></label>
         </div>
         <label class="tiny mute" id="thWrap">Peanut panel height <input type="range" id="th" min="480" max="1300" step="10" style="width:100%"></label>
+        <div id="cutWrap" style="display:none">
+          <div class="row tiny"><span class="mute">Cut out</span><span class="seg" id="lyCutWhat"><button data-v="whole">Whole Peanut</button><button data-v="head">Head only</button></span></div>
+          <label class="tiny mute">Peanut size <input type="range" id="lyCutH" min="10" max="100" step="1" style="width:100%"></label>
+          <p class="tiny mute" style="margin:4px 0">Draw the Peanut box tight around him, then drag him on the preview to move him. The preview shows his box; the real cut-out (no background) happens when the Short is made.
+            <button class="link" id="lyCutReal">Show the real cut-out on this frame</button></p>
+          <img id="lyCutImg" style="display:none;width:270px;border-radius:12px;border:1px solid var(--line)" alt="">
+        </div>
         <label class="toggle tiny"><input type="checkbox" class="safeTog"> Show YouTube safe zones (where the Shorts buttons cover the video)</label>
         <canvas id="prev" width="540" height="960"></canvas>
         <div><div class="tiny mute" style="margin-bottom:4px">Banners on this layout</div><div id="lyBanners" class="tiny"></div></div>
@@ -692,7 +699,7 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
       <div class="fr-wrap">
         <button class="btn" id="frToggle">Framing for this Short &#9662;</button> <span class="tiny mute" id="frState"></span>
         <div id="frPanel" style="display:none">
-          <div class="row" style="margin-top:10px"><span class="seg" id="frMode"><button data-m="stack">Peanut over gameplay</button><button data-m="single">Gameplay only</button><button data-m="blurfit">Whole stream</button></span></div>
+          <div class="row" style="margin-top:10px"><span class="seg" id="frMode"><button data-m="stack">Peanut over gameplay</button><button data-m="single">Gameplay only</button><button data-m="blurfit">Whole stream</button><button data-m="cutout">Peanut cut-out</button></span></div>
           <div class="fr">
             <div class="fr-stage" id="frStage"><canvas id="frCan" width="960" height="540"></canvas>
               <div class="box av" id="f_avatar"></div><div class="box gp" id="f_gameplay"></div></div>
@@ -760,7 +767,7 @@ function fmtTime(t){if(!t)return'';let[h,m]=t.split(':').map(Number);const ap=h>
 function drawJob(j){
   const card=$('jobCard');if(!j.kind){card.style.display='none';return}
   card.style.display='block';
-  const titles={syncfix:'Converting the stream',compadd:'Adding to the compilation',compaddrange:'Adding a part',compaddfile:'Adding your clip',roto:'Cut-out',compexport:'Exporting',coladd:'Adding to the collection',search:'Searching for keywords',fromsearch:'Cutting a match',rerender:'Re-cutting a Short',export:'Exporting for Premiere',vod:'Making Shorts',longvid:'Making a long video',inbox:'Auto-clip folder',clips:'Twitch top clips',upload:'Uploading',auto:'Auto mode',frame:'Grabbing a frame',hwtest:'Graphics card test'};
+  const titles={syncfix:'Converting the stream',compadd:'Adding to the compilation',compaddrange:'Adding a part',compaddfile:'Adding your clip',roto:'Cut-out',layoutcut:'Cut-out layout preview',compexport:'Exporting',coladd:'Adding to the collection',search:'Searching for keywords',fromsearch:'Cutting a match',rerender:'Re-cutting a Short',export:'Exporting for Premiere',vod:'Making Shorts',longvid:'Making a long video',inbox:'Auto-clip folder',clips:'Twitch top clips',upload:'Uploading',auto:'Auto mode',frame:'Grabbing a frame',hwtest:'Graphics card test'};
   $('jobTitle').textContent=(titles[j.kind]||'Working')+(j.running?'...':'');
   $('jobPct').textContent=j.running?j.pct+'%':'';
   $('bar').className='bar'+(j.ok===false?' err':(j.ok?' done':''));$('bar').firstElementChild.style.width=(j.ok?100:j.pct)+'%';
@@ -779,6 +786,7 @@ function drawJob(j){
     if(j.kind==='compadd'){addingNow={};loadComps();if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
     if(j.kind==='coladd'){colAdding={};edAdding={};loadCols();loadComps().then(()=>{if($('edShorts').style.display!=='none')edShortsOpen()});if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
     if(j.kind==='roto')cutFinished(j);
+    if(j.kind==='layoutcut'&&j.ok){const im=$('lyCutImg');im.src='/layout_cut.png?t='+Date.now();im.style.display='block'}
     if(j.kind==='compaddfile'){loadComps();if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
     if(j.ok&&j.kind==='compexport'){loadComps();loadCols();const f=S.settings.export_folder||S.default_export;
       toast('<b>'+esc(j.label)+'</b><br><span class="tiny">'+esc(f)+'</span><br><button class="link" onclick="api(\'/api/open_folder\',{path:'+esc(JSON.stringify(f)).replace(/'/g,'&#39;')+'})">Open the folder</button>')}
@@ -1642,9 +1650,12 @@ async function initLayout(fresh){
   if(hasFrame&&(!$('cimg').src||fresh))$('cimg').src='/calib.jpg?'+Date.now();
   if(!hasFrame)$('cimg').removeAttribute('src');
   const m=L.mode;$('whichBox').style.display=m==='blurfit'?'none':'block';$('thWrap').style.display=m==='stack'?'block':'none';
-  document.querySelector('[name=which][value=avatar]').parentElement.style.display=m==='stack'?'':'none';
+  document.querySelector('[name=which][value=avatar]').parentElement.style.display=(m==='stack'||m==='cutout')?'':'none';
+  $('cutWrap').style.display=m==='cutout'?'':'none';$('lyCutImg').style.display='none';$('avHint').textContent=m==='cutout'?'(where he is in the stream)':'(top)';
+  if(m==='cutout'){L.cut=Object.assign({what:'whole',x:.3,y:1,h:.5},L.cut||{});$('lyCutH').value=Math.round(L.cut.h*100);
+    document.querySelectorAll('#lyCutWhat button').forEach(b=>b.classList.toggle('on',b.dataset.v===L.cut.what))}
   if(m==='single')document.querySelector('[name=which][value=gameplay]').checked=true;
-  $('gpLabel').textContent=m==='single'?'Frame box':'Gameplay box';$('gpHint').textContent=m==='single'?'(fills the whole Short)':'(bottom)';
+  $('gpLabel').textContent=m==='single'?'Frame box':'Gameplay box';$('gpHint').textContent=m==='single'||m==='cutout'?'(fills the whole Short)':'(bottom)';
   renderLayoutBanners();syncZoom();drawCal();
   updateLayoutMenus();
 }
@@ -1687,7 +1698,7 @@ $('zoom').onchange=()=>saveLY();$('th').oninput=()=>{L.top_height=+$('th').value
 function drawCal(){
   if(!L)return;const m=L.mode;
   for(const k of ['avatar','gameplay']){const b=L[k],e=$('b_'+k);
-    const show=S&&S.has_frame&&(k==='gameplay'?m!=='blurfit':m==='stack');e.style.display=show?'block':'none';
+    const show=S&&S.has_frame&&(k==='gameplay'?m!=='blurfit':(m==='stack'||m==='cutout'));e.style.display=show?'block':'none';
     e.style.left=b.x*100+'%';e.style.top=b.y*100+'%';e.style.width=b.w*100+'%';e.style.height=b.h*100+'%'}
   const img=$('cimg'),c=$('prev'),x=c.getContext('2d'),W=img.naturalWidth,H=img.naturalHeight;
   x.fillStyle='#1a1b1f';x.fillRect(0,0,540,960);x.filter='none';
@@ -1698,9 +1709,12 @@ function drawCal(){
   if(W&&img.src){
     if(m==='stack'){cover(L.avatar,0,top);cover(L.gameplay,top,960-top)}
     else if(m==='single'){cover(L.gameplay,0,960)}
+    else if(m==='cutout'){cover(L.gameplay,0,960);const c=L.cut||{x:.3,y:1,h:.5},a=L.avatar,ph=c.h*960,pw=ph*(a.w*W)/Math.max(1,a.h*H),px=c.x*540-pw/2,py=c.y*960-ph;
+      x.globalAlpha=.85;x.drawImage(img,a.x*W,a.y*H,a.w*W,a.h*H,px,py,pw,ph);x.globalAlpha=1;x.setLineDash([8,6]);x.strokeStyle='#ff4fb3';x.lineWidth=2;x.strokeRect(px,py,pw,ph);x.setLineDash([]);
+      CUTBOX=[px,py,pw,ph]}
     else{x.filter='blur(12px) brightness(0.8)';cover({x:0,y:0,w:1,h:1},0,960);x.filter='none';const h=540*H/W;x.drawImage(img,0,(960-h)/2,540,h)}
   }else{x.fillStyle='#6d717b';x.font='20px Segoe UI';x.textAlign='center';x.fillText('Preview appears here',270,480)}
-  const seam=m==='stack'?top:m==='single'?480:(W?(960-540*H/W)/2:480);
+  const seam=m==='stack'?top:m==='single'?480:m==='cutout'?320:(W?(960-540*H/W)/2:480);
   const list=(S&&S.settings.overlays)||[];
   for(const o of list){const on=L.banners==null?o.enabled!==false:L.banners.includes(o.file);
     if(!on||!/\.(png|webp|jpe?g)$/i.test(o.file))continue;
@@ -1712,6 +1726,18 @@ function drawCal(){
   if(SAFE)safeZones($('prev'));
 }
 $('cimg').onload=()=>drawCal();
+let CUTBOX=null,cutDragL=null;
+$('prev').addEventListener('mousedown',e=>{if(!L||L.mode!=='cutout'||!CUTBOX)return;const r=$('prev').getBoundingClientRect(),px=(e.clientX-r.left)/r.width*540,py=(e.clientY-r.top)/r.height*960;
+  const[bx,by,bw,bh]=CUTBOX;if(px<bx||px>bx+bw||py<by||py>by+bh)return;e.preventDefault();cutDragL={dx:px-(L.cut.x*540),dy:py-(L.cut.y*960)}});
+window.addEventListener('mousemove',e=>{if(!cutDragL)return;const r=$('prev').getBoundingClientRect(),px=(e.clientX-r.left)/r.width*540,py=(e.clientY-r.top)/r.height*960;
+  L.cut.x=Math.min(1,Math.max(0,(px-cutDragL.dx)/540));L.cut.y=Math.min(1,Math.max(.1,(py-cutDragL.dy)/960));$('lyCutImg').style.display='none';drawCal()});
+window.addEventListener('mouseup',()=>{if(cutDragL){cutDragL=null;saveLY()}});
+$('lyCutH').oninput=()=>{L.cut.h=+$('lyCutH').value/100;$('lyCutImg').style.display='none';drawCal()};$('lyCutH').onchange=()=>saveLY();
+document.querySelectorAll('#lyCutWhat button').forEach(b=>b.onclick=()=>{L.cut.what=b.dataset.v;document.querySelectorAll('#lyCutWhat button').forEach(x=>x.classList.toggle('on',x===b));$('lyCutImg').style.display='none';saveLY()});
+$('lyCutReal').onclick=async()=>{if(!S||!S.has_frame){toast('Grab a frame above first.');return}
+  await api('/api/layouts',LY);S.layouts=clone(LY);
+  const r=await api('/api/run',{kind:'layoutcut',layout:L.id}).catch(()=>null);if(!r)return;lastJobKey='running';
+  toast(r.queued?'<b>In line:</b> starts when the current job finishes.':'<b>Cutting Peanut out of the frame...</b> (the first time also downloads the cut-out engine)');poll()};
 let drag=null;const stage=$('stage');
 const pos=e=>{const r=stage.getBoundingClientRect();return[Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))]};
 stage.onmousedown=e=>{if(!S||!S.has_frame||L.mode==='blurfit')return;e.preventDefault();const p=pos(e),k=sel(),b=L[k];
@@ -1953,7 +1979,7 @@ function frDraw(){liveDraw();if(!F||$('frPanel').style.display==='none')return;
   const v=$('edSrc'),W=v.videoWidth,H=v.videoHeight,c=$('frCan'),x=c.getContext('2d');
   if(W){c.width=960;c.height=Math.round(960*H/W);x.drawImage(v,0,0,c.width,c.height)}
   for(const k of ['avatar','gameplay']){const b=F[k],e=$('f_'+k);
-    e.style.display=(k==='gameplay'?F.mode!=='blurfit':F.mode==='stack')?'block':'none';
+    e.style.display=(k==='gameplay'?F.mode!=='blurfit':(F.mode==='stack'||F.mode==='cutout'))?'block':'none';
     e.style.left=b.x*100+'%';e.style.top=b.y*100+'%';e.style.width=b.w*100+'%';e.style.height=b.h*100+'%'}
   const p=$('frPrev'),y=p.getContext('2d'),PW=270,PH=480;y.fillStyle='#1a1b1f';y.fillRect(0,0,PW,PH);if(!W)return;
   const cover=(b,dy,dh)=>{let sx=b.x*W,sy=b.y*H,sw=b.w*W,sh=b.h*H;const r=PW/dh;

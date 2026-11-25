@@ -30,6 +30,27 @@ def layout_filter(cfg, sw, sh, src="0:v", out="v", tag=""):
               f"[{b}]{_crop(lay['gameplay'], sw, sh)},scale={W}:{bot}:force_original_aspect_ratio=increase,crop={W}:{bot}[{g}];"
               f"[{t}][{g}]vstack=inputs=2,setsar=1[{out}]")
         return fc, top, top
+    if lay.get("mode") == "cutout":
+        # the game fills the Short; Peanut (cut out through the matte input) stands in front of it
+        from .util import clean_cut
+        c = clean_cut(lay.get("cut"))
+        av = lay["avatar"]
+        ph = _even(c["h"] * H)
+        pw = _even(ph * (av["w"] * sw) / max(1.0, av["h"] * sh))
+        x, y = int(c["x"] * W - pw / 2), int(c["y"] * H - ph)
+        mi = cfg.get("_matte_input")
+        p, m, pa = f"p{tag}", f"m{tag}", f"pa{tag}"
+        if mi is None:                     # no matte (e.g. a quick preview): Peanut's box as it is
+            fc = (f"[{src}]split=2[{a}][{b}];"
+                  f"[{b}]{_crop(lay['gameplay'], sw, sh)},scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1[{g}];"
+                  f"[{a}]{_crop(av, sw, sh)},scale={pw}:{ph},setsar=1[{p}];[{g}][{p}]overlay={x}:{y}[{out}]")
+        else:
+            fc = (f"[{src}]split=2[{a}][{b}];"
+                  f"[{b}]{_crop(lay['gameplay'], sw, sh)},scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1[{g}];"
+                  f"[{a}]{_crop(av, sw, sh)},scale={pw}:{ph},setsar=1,format=yuva420p[{p}];"
+                  f"[{mi}:v]scale={pw}:{ph},format=gray[{m}];[{p}][{m}]alphamerge[{pa}];"
+                  f"[{g}][{pa}]overlay={x}:{y}:format=auto[{out}]")
+        return fc, H * 0.28, H // 3
     if lay.get("mode") == "single":
         fc = (f"[{src}]{_crop(lay['gameplay'], sw, sh)},scale={W}:{H}:force_original_aspect_ratio=increase,"
               f"crop={W}:{H},setsar=1[{out}]")
@@ -136,6 +157,9 @@ def compose(cfg, sw, sh, sections, words, start, end, out_dir, stem):
     n = len(combos)
     fc = f"[0:v]split={n}" + "".join(f"[s{i}]" for i in range(n)) if n > 1 else "[0:v]null[s0]"
     inputs, ass_files, finals = [], [], []
+    if cfg.get("_matte"):                       # cut-out layout: Peanut's matte is input 1
+        inputs += ["-i", str(cfg["_matte"])]
+        cfg = dict(cfg, _matte_input=1)
     for i, (look, ban, box) in enumerate(combos):
         part, cap_y, seam = look_filter(cfg, sw, sh, look, json.loads(box) if box else None, f"s{i}", f"l{i}", str(i))
         ins, chain, cur = overlay_inputs(cfg, seam, ban, 1 + inputs.count("-i"), str(i), f"l{i}")
@@ -163,6 +187,10 @@ def render_short(src, start, end, out_path, words, cfg, sw, sh, sections=None):
     out_path = Path(out_path)
     out_dir = out_path.parent
     secs = clean_sections(sections, start, end)
+    matte = None
+    if cfg["layout"].get("mode") == "cutout":
+        matte = make_matte(cfg, src, start, end, sw, sh, out_dir / f"{out_path.stem}.matte.mkv")
+        cfg = dict(cfg, _matte=matte.name)
     extra_in, fc, last, ass_files = compose(cfg, sw, sh, secs, words, start, end, out_dir, out_path.stem)
     fps = str(cfg.get("settings", {}).get("output_fps", 60))
     cmd = (["ffmpeg", "-v", "error", "-y", "-ss", f"{start:.2f}", "-i", str(Path(src).resolve())] + extra_in +
@@ -172,6 +200,8 @@ def render_short(src, start, end, out_path, words, cfg, sw, sh, sections=None):
     subprocess.run(cmd, check=True, cwd=out_dir)
     for name in ass_files[1:]:                 # extra caption files are only needed while rendering
         (out_dir / name).unlink(missing_ok=True)
+    if matte:
+        matte.unlink(missing_ok=True)
     poster = out_path.with_suffix(".jpg")
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{min(1.5, (end - start) / 2):.2f}",
                     "-i", out_path.name, "-frames:v", "1", "-vf", "scale=360:-2", poster.name],
@@ -182,15 +212,49 @@ def render_short(src, start, end, out_path, words, cfg, sw, sh, sections=None):
 def snapshot(src, at, out_png, cfg, sw, sh, section=None, vertical=True):
     """One full-size PNG of the frame at `at` (seconds in src): as it looks in the Short, or the plain stream frame."""
     out_png = Path(out_png)
-    cmd = ["ffmpeg", "-v", "error", "-y", "-ss", f"{max(0.0, at):.3f}", "-i", str(Path(src).resolve())]
+    still = Path(src).suffix.lower() in (".jpg", ".jpeg", ".png", ".webp", ".bmp")   # the Layouts tab's frame
+    cmd = ["ffmpeg", "-v", "error", "-y"] + (["-loop", "1", "-framerate", "30"] if still else ["-ss", f"{max(0.0, at):.3f}"]) + \
+        ["-i", str(Path(src).resolve())]
     if vertical:
         secs = clean_sections([dict(section, start=at - 1, end=at + 1)] if section else [], at, at + 1)
         if secs:
             secs[0].update(start=0.0, end=1.0)
-        extra_in, fc, last, _ = compose(dict(cfg, captions=dict(cfg["captions"], enabled=False)), sw, sh, secs, [],
-                                        at, at + 1, out_png.parent, out_png.stem)
+        c2 = dict(cfg, captions=dict(cfg["captions"], enabled=False))
+        matte = None
+        if cfg["layout"].get("mode") == "cutout" and not (secs and secs[0]["look"] != "normal"):
+            matte = make_matte(cfg, src, max(0.0, at), max(0.0, at) + 0.5, sw, sh, out_png.parent / f"{out_png.stem}.matte.mkv")
+            c2["_matte"] = str(matte)
+        extra_in, fc, last, _ = compose(c2, sw, sh, secs, [], at, at + 1, out_png.parent, out_png.stem)
         cmd += extra_in + ["-filter_complex", fc, "-map", f"[{last}]"]
     else:
         cmd += ["-map", "0:v:0"]
-    subprocess.run(cmd + ["-frames:v", "1", "-update", "1", str(out_png)], check=True)
+    try:
+        subprocess.run(cmd + ["-frames:v", "1", "-update", "1", str(out_png)], check=True)
+    finally:
+        if vertical and cfg["layout"].get("mode") == "cutout":
+            (out_png.parent / f"{out_png.stem}.matte.mkv").unlink(missing_ok=True)
     return out_png
+
+
+def make_matte(cfg, src, start, end, sw, sh, out):
+    """Cut-out layout: Peanut's matte (white = Peanut) for the Peanut box, start..end of src. Runs as its own
+    process (python -m clipper matte) so the cut-out engine can load its GPU onnxruntime."""
+    import sys
+    from .util import clean_cut
+    out = Path(out)
+    lay = cfg["layout"]
+    job = {"src": str(Path(src).resolve()), "start": start, "end": end, "box": lay["avatar"], "sw": sw, "sh": sh,
+           "what": clean_cut(lay.get("cut"))["what"], "out": str(out.resolve())}
+    jf = out.with_suffix(".json")
+    jf.write_text(json.dumps(job), encoding="utf-8")
+    try:
+        r = subprocess.run([sys.executable, "-m", "clipper", "matte", str(jf)], capture_output=True, text=True,
+                           cwd=str(Path(__file__).resolve().parent.parent),
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0)
+    finally:
+        jf.unlink(missing_ok=True)
+    if r.returncode != 0 or not out.is_file():
+        tail = (r.stderr or r.stdout or "").strip().splitlines()[-3:]
+        raise SystemExit("[!] Couldn't cut Peanut out for the cut-out layout: " + " ".join(tail))
+    print((r.stdout or "").strip().splitlines()[-1] if r.stdout.strip() else "  matte made", flush=True)
+    return out

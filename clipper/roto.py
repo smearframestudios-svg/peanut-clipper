@@ -241,7 +241,16 @@ class Cutter:
         if self.method == "person" or (self.method == "key" and self.what == "whole" and not self.o.get("click")):
             keep = small                                           # everything, no tracking
         else:
-            keep = self.body.pick(nd.label(small)[0])
+            lab, k = nd.label(small)
+            if not self.o.get("click") and not getattr(self, "seeded", False) and k:
+                big = 1 + int(np.argmax(nd.sum(np.ones_like(lab), lab, range(1, k + 1))))
+                ys, xs = np.nonzero(lab == big)
+                self.body.box = [xs.min(), ys.min(), xs.max() + 1, ys.max() + 1]
+                top = ys < ys.min() + (ys.max() - ys.min()) * 0.3          # the top of him = the shell
+                self.cx, self.cy = int(xs[top].mean()), int(ys[top].mean())
+                self.head = Track(self.cx, self.cy, 8)
+                self.seeded = True
+            keep = self.body.pick(lab)
         if self.what == "head":
             F = _feats(sm)
             if self.model is None:
@@ -432,6 +441,44 @@ def job(cfg, jobfile, preview=False):
             opts["at"] = a + float(opts["at"])
     opts.setdefault("title", title)
     return run(cfg, f, opts, preview)
+
+
+def matte(jobfile):
+    """`python -m clipper matte <job.json>`: the cut-out layout's matte for one Short (gray .mkv, white = Peanut).
+    Only the Peanut box is cut out (small = fast); no click needed - he's the biggest shape in his box."""
+    j = json.loads(Path(jobfile).read_text(encoding="utf-8"))
+    src, a, b, box = Path(j["src"]), float(j["start"]), float(j["end"]), j["box"]
+    sw, sh = int(j["sw"]), int(j["sh"])
+    x, y = int(box["x"] * sw), int(box["y"] * sh)
+    w = int(min(box["w"] * sw, sw - x)) // 2 * 2
+    h = int(min(box["h"] * sh, sh - y)) // 2 * 2
+    fps = _fps(src)
+    cut = Cutter({"what": j.get("what", "whole"), "method": "follow", "edges": "normal"}, (w, h))
+    still = src.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp", ".bmp")     # the Layouts tab's frame
+    inp = ["-loop", "1", "-framerate", f"{fps}", "-i", str(src)] if still else ["-ss", f"{a:.3f}", "-i", str(src)]
+    dec = subprocess.Popen(["ffmpeg", "-v", "error"] + inp + ["-t", f"{b - a:.3f}",
+                            "-vf", f"crop={w}:{h}:{x}:{y},fps={fps}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                           stdout=subprocess.PIPE, **_nowin())
+    enc = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{w}x{h}",
+                            "-r", f"{fps}", "-i", "-", "-c:v", "ffv1", "-pix_fmt", "gray", j["out"]],
+                           stdin=subprocess.PIPE, **_nowin())
+    n, t0 = 0, time.time()
+    try:
+        while True:
+            buf = dec.stdout.read(w * h * 3)
+            if len(buf) < w * h * 3:
+                break
+            al = cut.frame(np.frombuffer(buf, np.uint8).reshape(h, w, 3), n / fps)
+            enc.stdin.write((al * 255).astype(np.uint8).tobytes())
+            n += 1
+    finally:
+        enc.stdin.close()
+        enc.wait()
+        dec.stdout.close()
+        dec.wait()
+    if not n:
+        raise SystemExit("[!] No frames to cut out.")
+    print(f"  cut-out matte: {n} frames, {(time.time() - t0) / n:.2f} s per frame")
 
 
 def _fps(src):

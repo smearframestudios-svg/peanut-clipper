@@ -98,7 +98,7 @@ class Runner:
         if not self.ok:
             err = next((ln for ln in reversed(self.log) if ln.startswith(("[!]", "ERROR")) or "Error" in ln), "")
             self.label = (err.strip() or f"Stopped (code {code})")[:300]
-        elif self.kind not in ("vod", "search", "fromsearch", "inbox", "longvid", "roto"):
+        elif self.kind not in ("vod", "search", "fromsearch", "inbox", "longvid", "roto", "layoutcut"):
             self.pct = 100
             self.label = {"upload": "Upload finished", "frame": "Frame ready - draw the boxes below",
                           "auto": "Auto run finished", "clips": "Twitch Shorts ready to review",
@@ -450,6 +450,9 @@ def make_handler():
                     except SystemExit:
                         info["stream_ok"] = False
                 return self._send(200, info)
+            if p == "/layout_cut.png":
+                f = DATA / "layout_cut.png"
+                return self._file(f) if f.is_file() else self._send(404, "not found")
             if p == "/cut_preview":
                 f = DATA / "cutout_preview.mp4"
                 return self._file(f) if f.is_file() else self._send(404, "not found")
@@ -743,6 +746,9 @@ def make_handler():
                     jf.write_text(json.dumps({"spec": body["spec"], "opts": body.get("opts") or {}}), encoding="utf-8")
                     args = ["roto", str(jf)] + (["--preview"] if body.get("preview") else [])
                     label = "Getting the preview ready..." if body.get("preview") else "Cutting out Peanut..."
+                elif kind == "layoutcut":
+                    args = ["layoutcut", str(body.get("layout") or "")]
+                    label = "Cutting Peanut out of the frame..."
                 elif kind == "compaddrange":
                     args = ["compaddrange", str(body["comp"]), str(float(body["start"])), str(float(body["end"]))] + \
                         (["--after", str(body["after"])] if body.get("after") else [])
@@ -909,8 +915,11 @@ def make_handler():
                 clean = []
                 for l in body.get("layouts", []):
                     item = {"id": str(l["id"])[:40], "name": (str(l.get("name") or "Layout").strip() or "Layout")[:40],
-                            "mode": l.get("mode") if l.get("mode") in ("stack", "single", "blurfit") else "blurfit",
+                            "mode": l.get("mode") if l.get("mode") in ("stack", "single", "blurfit", "cutout") else "blurfit",
                             "top_height": int(l.get("top_height", 760)), "banners": l.get("banners")}
+                    if l.get("cut"):
+                        from .util import clean_cut
+                        item["cut"] = clean_cut(l["cut"])
                     for k in ("avatar", "gameplay"):
                         b = l.get(k) or {}
                         item[k] = {q: max(0.0, min(1.0, float(b.get(q, 0.5)))) for q in ("x", "y", "w", "h")}

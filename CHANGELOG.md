@@ -1,5 +1,12 @@
 # What's new
 
+## 1.20.0
+- New layout: Peanut cut-out on gameplay. The game fills the whole Short and Peanut stands in front of it, with no box around him. Pick it on the Layouts tab like the other layouts.
+- Whole Peanut or Head only, how big he is, and where he stands: drag him on the preview.
+- Show the real cut-out on this frame: see exactly how he'll look before you make Shorts with it.
+- Making Shorts with this layout takes longer, because Peanut is cut out of every frame first (your graphics card does most of the work).
+- The Framing for this Short editor has the cut-out style too.
+
 ## 1.19.0
 - Cut out Peanut: a new Cut-out tab takes Peanut off the gameplay behind him, frame by frame, on your PC. Open it with the Cut out Peanut button on a Short in Review, on a part in the Compilations editor, or drop any video on the tab.
 - Whole Peanut or Head only: Whole Peanut keeps everything the stream shows of him (head, glasses, lips, shirt, jacket). Head only keeps the shell with the glasses and lips, ending at the neck.

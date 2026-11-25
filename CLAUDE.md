@@ -51,7 +51,10 @@ overlays/, client_secret.json, token.json, hardware.json, processed.json, logs),
 - Progress lines printed as `@@ <pct> <label>` drive the progress bar.
 
 ## Layouts
-Saved in `data/layouts.json` ({default, layouts:[{id,name,mode stack|single|blurfit,avatar,gameplay,top_height,banners}]}).
+Saved in `data/layouts.json` ({default, layouts:[{id,name,mode stack|single|blurfit|cutout,avatar,gameplay,top_height,banners,cut}]}).
+mode cutout: gameplay box fills the Short, Peanut box cut out and overlaid at cut {what whole|head, x centre, y feet, h height} (0..1);
+render.make_matte runs `python -m clipper matte` (own process, GPU onnxruntime) -> gray ffv1 matte = ffmpeg input 1 (banners after it);
+Layouts tab 'Show the real cut-out' = `layoutcut` job -> data/layout_cut.png.
 `util.apply_layout(cfg, id)` sets `cfg["layout"]` for the renderer; each clip records its `layout` id.
 
 ## Owner preferences
