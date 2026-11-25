@@ -104,6 +104,9 @@ def main(argv=None):
     ca.add_argument("comp")
     ca.add_argument("sid")
     ca.add_argument("idx", type=int)
+    rt = sub.add_parser("roto", help="cut Peanut out of a video (Cut-out tab)")
+    rt.add_argument("jobfile")
+    rt.add_argument("--preview", action="store_true")
     ar = sub.add_parser("compaddrange", help="copy a part of a long video's source into it")
     ar.add_argument("comp")
     ar.add_argument("start", type=float)
@@ -215,6 +218,9 @@ def main(argv=None):
     elif a.cmd == "compadd":
         from .compile import add_moment
         add_moment(cfg, a.comp, a.sid, a.idx)
+    elif a.cmd == "roto":
+        from .roto import job
+        job(cfg, a.jobfile, a.preview)
     elif a.cmd == "compaddrange":
         from .compile import add_range
         add_range(cfg, a.comp, a.start, a.end, a.after)

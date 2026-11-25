@@ -14,7 +14,7 @@ owner's fan channel @BurntPeanutXD. The owner is not a programmer: they install 
 4. If `requirements.txt` changes, the updater re-runs `clipper setup`, which installs it.
 
 ## Never touched by updates (owner's data)
-`.venv/` packages, `bin/` (ffmpeg, ffprobe, deno), `data/` (settings.json, layout.json, editor_media/ (intro/outro/music for the editor),
+`.venv/` packages, `bin/` (ffmpeg, ffprobe, deno, ort-dml = the cut-out job's own DirectML onnxruntime), `data/` (settings.json, layout.json, editor_media/ (intro/outro/music for the editor), models/ (cut-out ONNX models),
 overlays/, client_secret.json, token.json, hardware.json, processed.json, logs), `work/`
 (downloaded streams), `output/` (Shorts + clips.json), `exports/`, `compilations/` (each compilation's moments). New settings go in
 `DEFAULT_SETTINGS` in `clipper/util.py` so existing installs pick up defaults.
@@ -39,6 +39,9 @@ overlays/, client_secret.json, token.json, hardware.json, processed.json, logs),
   "Add to editor" (edButton/markEd, CMPMEM from /api/comps members = compile.memberships(kind)),
   export_video: intro/outro (_norm_piece), per-part zoom crop (_zoom_filter from the default layout) + text PNG (_text_png) + tr, xfade joins on settb=AVTB,
   music bed pass, chapters() -> '<name> - chapters.txt',
+  `roto.py` (Cut-out tab: RVM + U2-Net human ONNX models from GitHub into data/models, run in the `roto` job with its own DirectML onnxruntime from bin/ort-dml
+  (never import that in other processes - faster-whisper has the plain onnxruntime); Cutter.frame = matte, tracked component from the click (scipy),
+  head-only via shell colour + convex hull, leave-out boxes with time ranges; resolve(spec) short/part/upload; outputs ProRes 4444 .mov / green mp4 / PNGs in exports/Cut-outs),
   `longvid.py` (Make: Long video / Both on the Make Shorts box: pipeline.fetch_source + check_video shared with process_vod, Detector with longer/closer
   moments and min_score 0, pick() best until long_minutes, saved as a compilation via compile.copy_range; data/last_longvid.json for the page),
   `inbox.py` (Auto-clip folder card: settings watch_enabled/watch_folder/watch_after move|delete|keep/watch_layout; app.inbox_watcher starts

@@ -11,11 +11,11 @@ import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 from . import library
 from .updater import python_exe
-from .util import DATA, ROOT, load_config, load_json, parse_hms, save_json, save_settings
+from .util import DATA, ROOT, load_config, load_json, parse_hms, probe, save_json, save_settings
 
 BELOW_NORMAL = 0x00004000
 NO_WINDOW = 0x08000000
@@ -40,7 +40,8 @@ class Runner:
     def running(self):
         return self.proc is not None and self.proc.poll() is None
 
-    QUEUEABLE = ("rerender", "export", "fromsearch", "compadd", "compexport", "coladd", "compaddrange", "compaddfile")
+    QUEUEABLE = ("rerender", "export", "fromsearch", "compadd", "compexport", "coladd", "compaddrange", "compaddfile",
+                 "roto")
 
     def start(self, kind, args, label, section_len=None):
         """True = started, "queued" = waits for the current job, False = refused (something else is running)."""
@@ -97,7 +98,7 @@ class Runner:
         if not self.ok:
             err = next((ln for ln in reversed(self.log) if ln.startswith(("[!]", "ERROR")) or "Error" in ln), "")
             self.label = (err.strip() or f"Stopped (code {code})")[:300]
-        elif self.kind not in ("vod", "search", "fromsearch", "inbox", "longvid"):
+        elif self.kind not in ("vod", "search", "fromsearch", "inbox", "longvid", "roto"):
             self.pct = 100
             self.label = {"upload": "Upload finished", "frame": "Frame ready - draw the boxes below",
                           "auto": "Auto run finished", "clips": "Twitch Shorts ready to review",
@@ -429,6 +430,31 @@ def make_handler():
                     return self._send(200, info(parse_qs(urlparse(self.path).query)["id"][0]))
                 except SystemExit as e:
                     return self._send(404, {"error": str(e).replace("[!] ", "")})
+            if p in ("/api/cut_info", "/cut_src"):        # Cut-out tab: what's being cut out, and its video
+                from urllib.parse import parse_qs
+                from . import roto
+                try:
+                    spec = json.loads(parse_qs(urlparse(self.path).query).get("spec", ["{}"])[0])
+                    f, a, b, title = roto.resolve(load_config(), spec)
+                except (SystemExit, ValueError, KeyError) as e:
+                    return self._send(404, {"error": str(e).replace("[!] ", "")})
+                if p == "/cut_src":
+                    return self._file(f)
+                dur, w, h = probe(f)
+                info = {"start": a or 0, "end": b or dur, "w": w, "h": h, "title": title,
+                        "url": "/cut_src?spec=" + quote(json.dumps(spec))}
+                if spec.get("type") == "short":
+                    try:
+                        roto.resolve(load_config(), dict(spec, **{"from": "stream"}))
+                        info["stream_ok"] = True
+                    except SystemExit:
+                        info["stream_ok"] = False
+                return self._send(200, info)
+            if p == "/cut_preview":
+                f = DATA / "cutout_preview.mp4"
+                return self._file(f) if f.is_file() else self._send(404, "not found")
+            if p == "/api/cut_last":
+                return self._send(200, load_json(DATA / "last_cutout.json", {}) or {})
             if p.startswith("/comp_source/"):           # + Add in the editor: the whole source to scrub
                 from .compile import get as cget
                 try:
@@ -522,6 +548,25 @@ def make_handler():
                 ovs.append({"file": name, "position": "full", "enabled": True, "offset": 0})
                 save_settings({"overlays": ovs})
                 return self._send(200, {"ok": True})
+            if p == "/api/cut_upload":                  # a video dropped on the Cut-out tab
+                from urllib.parse import parse_qs
+                from .roto import UPLOADS
+                name = re.sub(r"[^\w.\- ()]+", "_", Path(parse_qs(urlparse(self.path).query).get("name", ["video.mp4"])[0]).name)
+                problem = upload_problem(name, n, load_config())
+                if problem:
+                    _drain(self.rfile, n)
+                    return self._send(400, {"error": problem})
+                UPLOADS.mkdir(parents=True, exist_ok=True)
+                for old_f in UPLOADS.glob("*"):          # only the latest dropped video is kept
+                    if old_f.is_file() and old_f.name != name:
+                        old_f.unlink(missing_ok=True)
+                UPLOADING["n"] += 1
+                try:
+                    ok = _save_stream(self.rfile, n, UPLOADS / name)
+                finally:
+                    UPLOADING["n"] -= 1
+                return self._send(200, {"ok": True, "name": name}) if ok else \
+                    self._send(400, {"error": "The upload stopped before the whole video came through. Try again."})
             if p == "/api/comp_upload":                 # + Add > Clip from your PC: lands in compilations/<id>/_in/
                 from urllib.parse import parse_qs
                 from .compile import _path as cpath
@@ -690,6 +735,14 @@ def make_handler():
                     f = cpath(str(body["comp"])).parent / "_in" / Path(str(body["file"])).name
                     args = ["compaddfile", str(body["comp"]), str(f)] + (["--after", str(body["after"])] if body.get("after") else [])
                     label = "Adding your clip..."
+                elif kind == "roto":
+                    jf = DATA / "cutout_jobs" / f"{int(time.time() * 1000)}.json"
+                    jf.parent.mkdir(exist_ok=True)
+                    for old_j in sorted(jf.parent.glob("*.json"))[:-20]:
+                        old_j.unlink(missing_ok=True)
+                    jf.write_text(json.dumps({"spec": body["spec"], "opts": body.get("opts") or {}}), encoding="utf-8")
+                    args = ["roto", str(jf)] + (["--preview"] if body.get("preview") else [])
+                    label = "Getting the preview ready..." if body.get("preview") else "Cutting out Peanut..."
                 elif kind == "compaddrange":
                     args = ["compaddrange", str(body["comp"]), str(float(body["start"])), str(float(body["end"]))] + \
                         (["--after", str(body["after"])] if body.get("after") else [])

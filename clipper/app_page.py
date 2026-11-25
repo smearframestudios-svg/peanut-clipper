@@ -138,6 +138,13 @@ a{color:var(--blue)}
 .ed-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
 .ed-add{background:var(--panel2);border-radius:12px;padding:14px;margin-top:12px}.ed-add video{width:100%;max-height:360px;background:#000;border-radius:8px;margin-top:8px}
 .mono{font:700 14px Consolas,monospace}
+.cut-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,1.1fr);gap:18px}
+.cut-stage{position:relative;background:#000;border-radius:10px;overflow:hidden;max-height:560px;margin:auto}
+.cut-stage video,.cut-stage canvas{position:absolute;inset:0;width:100%;height:100%}.cut-stage canvas{cursor:crosshair}
+.cut-opts .k{color:var(--mute);font-size:12px;margin:12px 0 4px}.cut-opts .toggle{margin:4px 0}
+#cutPrev{width:100%;max-height:420px;background:#000;border-radius:8px}
+#cutSrcCard.over{border-color:var(--acc);background:#1f2026}
+
 .ed-menu{position:absolute;z-index:20;background:var(--panel2);border:1px solid #3a3d46;border-radius:10px;padding:6px;width:260px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
 .ed-menu button{display:block;width:100%;text-align:left;background:none;border:0;color:var(--text);padding:8px 10px;border-radius:6px;font:inherit;font-size:14px;cursor:pointer}
 .ed-menu button:hover{background:#2f3138}.ed-menu small{display:block;color:var(--mute);font-size:12px}
@@ -212,6 +219,7 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
     <button data-t="comps">Compilations</button>
     <button data-t="cols">Collections</button>
     <button data-t="titles">Title Cards</button>
+    <button data-t="cut">Cut-out</button>
     <button data-t="history">History</button>
     <button data-t="settings">Settings</button>
     <button data-t="layout">Layouts &amp; Banners</button>
@@ -448,6 +456,45 @@ select{background:#0f1012;border:1px solid var(--line);color:var(--text);border-
   </div>
 </section>
 
+<section id="cut">
+  <h2>Cut out Peanut</h2><p class="sub">Takes Peanut off the gameplay behind him, frame by frame, on your PC. Use the result in Premiere (transparent video) or anywhere a green screen works.</p>
+  <div class="card" id="cutSrcCard">
+    <div class="row"><b id="cutTitle">Nothing picked yet</b><span class="tiny mute" id="cutLen"></span>
+      <span class="seg" id="cutFrom" style="display:none;margin-left:12px"><button data-v="short">The Short</button><button data-v="stream">The stream (16:9, no banners)</button></span>
+      <span style="margin-left:auto" class="row"><button class="btn" id="cutPickFile">Choose a video</button></span></div>
+    <input type="file" id="cutFile" accept="video/*,.mp4,.mov,.mkv,.webm,.m4v,.avi,.ts,.flv,.wmv,.mts" style="display:none">
+    <div class="tiny mute" id="cutUpMsg" style="margin-top:6px">Press <b>Cut out Peanut</b> on a Short in Review or on a part in the Compilations editor, or drop any video on this card.</div>
+  </div>
+  <div class="card" id="cutBody" style="display:none">
+    <div class="cut-grid">
+      <div>
+        <div class="cut-stage" id="cutStage"><video id="cutVid" preload="metadata" muted playsinline></video><canvas id="cutCv"></canvas></div>
+        <div class="row" style="margin-top:8px"><input type="range" id="cutScrub" min="0" max="1000" value="0" style="flex:1"><span class="mono" id="cutT">0:00</span></div>
+        <div class="row tiny" style="margin-top:8px"><span class="seg" id="cutTool"><button data-v="click" class="on">Click Peanut</button><button data-v="box">Draw leave-out box</button></span>
+          <button class="link" id="cutClear">Clear boxes</button></div>
+        <div id="cutBoxes" class="tiny" style="margin-top:6px"></div>
+        <div class="tiny mute" id="cutHint" style="margin-top:6px">Click on Peanut's shell once (the yellow dot). Drag a red box over anything that should stay out, like a banner. A box counts from where you draw it to the end, unless you end it sooner (if the Short zooms and the banner moves, draw a new box after the zoom). Right-click a box to remove it.</div>
+      </div>
+      <div class="cut-opts">
+        <div class="k">What to cut out</div><span class="seg" id="cutWhat"><button data-v="whole">Whole Peanut</button><button data-v="head">Head only</button></span>
+        <div class="tiny mute" id="cutWhatNote"></div>
+        <div class="k">Method</div><span class="seg" id="cutMethod"><button data-v="follow">Follow Peanut</button><button data-v="person">Person matting</button><button data-v="key">Colour key</button></span>
+        <div class="tiny mute" id="cutMethodNote"></div>
+        <div id="cutKeyBox" class="row tiny" style="margin-top:8px;display:none"><span class="mute">Key colour</span><input type="color" id="cutKeyCol" value="#00ff00"><label class="toggle"><input type="checkbox" id="cutKeyAuto" checked> Find it for me</label>
+          <span class="mute" style="margin-left:8px">Strength</span><input type="range" id="cutKeyStr" min="0" max="100" value="50" style="width:110px"></div>
+        <div class="k">Edges</div><span class="seg" id="cutEdges"><button data-v="sharp">Sharp</button><button data-v="normal">Normal</button><button data-v="soft">Soft</button></span>
+        <div class="k">Make</div>
+        <label class="toggle tiny"><input type="checkbox" id="cutMov" checked> Transparent video for Premiere (.mov, ProRes 4444)</label>
+        <label class="toggle tiny"><input type="checkbox" id="cutGreen" checked> Green-screen video (.mp4)</label>
+        <label class="toggle tiny"><input type="checkbox" id="cutPng"> PNG frames</label>
+        <div class="row" style="margin-top:12px"><button class="btn" id="cutPrevBtn">Preview 3 s</button><button class="btn main" id="cutGo">Cut out the whole clip</button></div>
+        <div class="tiny mute" style="margin-top:6px">Saved to Exports \ Cut-outs. The first time, it downloads the cut-out engine and models (about 40 MB). Preview starts where the player is.</div>
+        <div id="cutPrevBox" style="display:none;margin-top:12px"><div class="k">Preview (on green)</div><video id="cutPrev" controls preload="metadata" playsinline></video></div>
+        <div id="cutDone" class="tiny" style="display:none;margin-top:10px"></div>
+      </div>
+    </div>
+  </div>
+</section>
 <section id="titles">
   <h2>Title Cards</h2><p class="sub">Big outlined text for the top of a Short, saved as a see-through picture (1080x1920 PNG) you drop on your Premiere timeline.</p>
   <div class="tc-wrap">
@@ -713,7 +760,7 @@ function fmtTime(t){if(!t)return'';let[h,m]=t.split(':').map(Number);const ap=h>
 function drawJob(j){
   const card=$('jobCard');if(!j.kind){card.style.display='none';return}
   card.style.display='block';
-  const titles={syncfix:'Converting the stream',compadd:'Adding to the compilation',compaddrange:'Adding a part',compaddfile:'Adding your clip',compexport:'Exporting',coladd:'Adding to the collection',search:'Searching for keywords',fromsearch:'Cutting a match',rerender:'Re-cutting a Short',export:'Exporting for Premiere',vod:'Making Shorts',longvid:'Making a long video',inbox:'Auto-clip folder',clips:'Twitch top clips',upload:'Uploading',auto:'Auto mode',frame:'Grabbing a frame',hwtest:'Graphics card test'};
+  const titles={syncfix:'Converting the stream',compadd:'Adding to the compilation',compaddrange:'Adding a part',compaddfile:'Adding your clip',roto:'Cut-out',compexport:'Exporting',coladd:'Adding to the collection',search:'Searching for keywords',fromsearch:'Cutting a match',rerender:'Re-cutting a Short',export:'Exporting for Premiere',vod:'Making Shorts',longvid:'Making a long video',inbox:'Auto-clip folder',clips:'Twitch top clips',upload:'Uploading',auto:'Auto mode',frame:'Grabbing a frame',hwtest:'Graphics card test'};
   $('jobTitle').textContent=(titles[j.kind]||'Working')+(j.running?'...':'');
   $('jobPct').textContent=j.running?j.pct+'%':'';
   $('bar').className='bar'+(j.ok===false?' err':(j.ok?' done':''));$('bar').firstElementChild.style.width=(j.ok?100:j.pct)+'%';
@@ -731,6 +778,7 @@ function drawJob(j){
     if(j.kind==='compaddrange'){loadComps();if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
     if(j.kind==='compadd'){addingNow={};loadComps();if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
     if(j.kind==='coladd'){colAdding={};edAdding={};loadCols();loadComps().then(()=>{if($('edShorts').style.display!=='none')edShortsOpen()});if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
+    if(j.kind==='roto')cutFinished(j);
     if(j.kind==='compaddfile'){loadComps();if(j.ok)toast('<b>'+esc(j.label)+'</b>')}
     if(j.ok&&j.kind==='compexport'){loadComps();loadCols();const f=S.settings.export_folder||S.default_export;
       toast('<b>'+esc(j.label)+'</b><br><span class="tiny">'+esc(f)+'</span><br><button class="link" onclick="api(\'/api/open_folder\',{path:'+esc(JSON.stringify(f)).replace(/'/g,'&#39;')+'})">Open the folder</button>')}
@@ -910,6 +958,7 @@ function edButton(c){return `<span class="colwrap"><button class="btn edbtn" dat
 function markEd(){document.querySelectorAll('.edbtn').forEach(b=>{const key=b.dataset.job+':'+b.dataset.id,inn=CMPMEM[key]||[];
   if(edAdding[key]){b.textContent='Adding...';b.classList.remove('added');b.disabled=true;return}
   b.disabled=false;b.textContent=inn.length?'In editor: '+inn.map(x=>x.name).join(', '):'Add to editor';b.classList.toggle('added',!!inn.length);b.title=inn.length?'Add to another compilation':''})}
+document.addEventListener('click',e=>{const b=e.target.closest('.cutbtn');if(b)cutOpen({type:'short',job:b.dataset.job,id:b.dataset.id,from:'short'})});
 document.addEventListener('click',async e=>{const b=e.target.closest('.edbtn');const item=e.target.closest('.colmenu.ed button');
   if(item){const {job,id,col}=item.dataset;closeColMenu();let target=col;
     if(target==='__new'){target=await newComp();if(!target)return}
@@ -1287,7 +1336,9 @@ function drawInsp(){const box=$('edInsp'),m=edSelM();
       <span class="tiny mute" style="margin-left:8px">End</span><button class="btn sm" data-t="b,-1">-1s</button><button class="btn sm" data-t="b,1">+1s</button></div>
     <div class="k">Into the next part</div><span class="seg" id="inTr"><button data-v="">Default (${esc(CMP.transition||'cut')})</button><button data-v="cut">Cut</button><button data-v="flash">Flash</button><button data-v="fade">Fade</button></span>
     <div class="k">Text on screen (first few seconds)</div><input type="text" id="inText" maxlength="120" placeholder="He really tried it" value="${esc(m.text||'')}">
-    <div class="k">Zoom</div><span class="seg" id="inZoom"><button data-v="full">Full</button><button data-v="cam">Peanut cam</button><button data-v="game">Gameplay</button></span>`;
+    <div class="k">Zoom</div><span class="seg" id="inZoom"><button data-v="full">Full</button><button data-v="cam">Peanut cam</button><button data-v="game">Gameplay</button></span>
+    <div style="margin-top:12px"><button class="btn" id="inCut">Cut out Peanut</button></div>`;
+  $('inCut').onclick=()=>{edStop();cutOpen({type:'part',comp:CMP.id,mid:m.mid})};
   box.querySelectorAll('#inTr button').forEach(b=>b.classList.toggle('on',b.dataset.v===tr));
   box.querySelectorAll('#inZoom button').forEach(b=>b.classList.toggle('on',b.dataset.v===zoom));
   box.querySelectorAll('#inTr button').forEach(b=>b.onclick=()=>cmpDo('moment',{mid:m.mid,tr:b.dataset.v}));
@@ -1382,6 +1433,92 @@ async function edShortsOpen(){edPanels('edShorts');const box=$('edShorts'),list=
     toast(r.queued?'<b>In line:</b> the Short is added when the current job finishes.':'<b>Adding the Short...</b>');poll()})}
 $('edShortsX').onclick=()=>$('edShorts').style.display='none';
 
+// ---------- Cut-out tab ----------
+const CUT={spec:null,info:null,click:null,at:0,leave:[],drag:null,tool:'click',opt:{what:'whole',method:'follow',edges:'normal'}};
+try{Object.assign(CUT.opt,JSON.parse(localStorage.getItem('pc_cut')||'{}'))}catch(e){}
+function cutSave(){try{localStorage.setItem('pc_cut',JSON.stringify(CUT.opt))}catch(e){}}
+function cutSeg(id,key){document.querySelectorAll(`#${id} button`).forEach(b=>{b.classList.toggle('on',b.dataset.v===CUT.opt[key]);
+  b.onclick=()=>{CUT.opt[key]=b.dataset.v;cutSave();cutDrawOpts()}})}
+function cutDrawOpts(){cutSeg('cutWhat','what');cutSeg('cutMethod','method');cutSeg('cutEdges','edges');
+  if(CUT.opt.what==='head'&&CUT.opt.method==='person'){CUT.opt.method='follow';cutSeg('cutMethod','method')}
+  $('cutWhatNote').textContent=CUT.opt.what==='head'?'The shell with the glasses and lips, ending at the neck.':'Everything the stream shows of him: head, glasses, lips, shirt and jacket.';
+  $('cutMethodNote').textContent={follow:'Keeps only what you clicked; the box follows him, so the gameplay, map and banners stay out.',
+    person:'Everything person-like in the picture (no click needed). Head only needs Follow Peanut or Colour key.',
+    key:'For green-screen or flat backgrounds. Click Peanut too if other things are in the picture.'}[CUT.opt.method];
+  document.querySelector('#cutMethod button[data-v=person]').disabled=CUT.opt.what==='head';
+  $('cutKeyBox').style.display=CUT.opt.method==='key'?'':'none'}
+async function cutOpen(spec){show('cut');$('cutUpMsg').textContent='Loading...';
+  let info;try{info=await api('/api/cut_info?spec='+encodeURIComponent(JSON.stringify(spec)))}catch(e){$('cutUpMsg').textContent='';return}
+  if(spec.type==='short'&&!spec.picked&&spec.from==='short'&&info.stream_ok){return cutOpen(Object.assign({},spec,{from:'stream',picked:1}))}
+  CUT.spec=spec;CUT.info=info;CUT.click=null;CUT.leave=[];CUT.at=0;
+  $('cutTitle').textContent=info.title||'Your video';$('cutLen').textContent=' · '+mmss(info.end-info.start);
+  $('cutFrom').style.display=spec.type==='short'&&info.stream_ok?'':'none';
+  document.querySelectorAll('#cutFrom button').forEach(b=>{b.classList.toggle('on',b.dataset.v===(spec.from||'short'));
+    b.onclick=()=>{if((spec.from||'short')!==b.dataset.v)cutOpen(Object.assign({},spec,{from:b.dataset.v,picked:1}))}});
+  $('cutUpMsg').innerHTML=spec.type==='short'&&info.stream_ok?'Tip: <b>The stream</b> has no banners or layout crop, so the cut-out is cleaner.':'';
+  $('cutBody').style.display='';$('cutPrevBox').style.display='none';$('cutDone').style.display='none';
+  const st=$('cutStage');st.style.aspectRatio=`${info.w}/${info.h}`;st.style.width=info.h>info.w?'min(100%, 315px)':'100%';
+  const v=$('cutVid');v.pause();v.src=info.url;v.addEventListener('loadedmetadata',()=>{v.currentTime=info.start+0.05;cutDraw()},{once:true});
+  v.onseeked=cutDraw;$('cutScrub').value=0;$('cutT').textContent='0:00';cutDrawOpts();cutDraw()}
+function cutXY(e){const cv=$('cutCv'),r=cv.getBoundingClientRect();return[(e.clientX-r.left)/r.width*CUT.info.w,(e.clientY-r.top)/r.height*CUT.info.h]}
+function cutDraw(){const cv=$('cutCv');if(!CUT.info)return;const r=cv.getBoundingClientRect();cv.width=Math.max(1,r.width);cv.height=Math.max(1,r.height);
+  const g=cv.getContext('2d'),kx=cv.width/CUT.info.w,ky=cv.height/CUT.info.h;g.clearRect(0,0,cv.width,cv.height);
+  g.setLineDash([6,4]);g.lineWidth=2;
+  const now=cutNow();cutBoxList();
+  for(const b of CUT.leave.filter(b=>now>=b[4]-0.02&&(b[5]==null||now<=b[5])).concat(CUT.drag?[CUT.drag]:[])){const[x0,y0,x1,y1]=b;g.fillStyle='rgba(255,107,107,.18)';g.strokeStyle='#ff6b6b';
+    g.fillRect(Math.min(x0,x1)*kx,Math.min(y0,y1)*ky,Math.abs(x1-x0)*kx,Math.abs(y1-y0)*ky);g.strokeRect(Math.min(x0,x1)*kx,Math.min(y0,y1)*ky,Math.abs(x1-x0)*kx,Math.abs(y1-y0)*ky)}
+  g.setLineDash([]);
+  if(CUT.click){const x=CUT.click[0]*kx,y=CUT.click[1]*ky;g.beginPath();g.arc(x,y,9,0,7);g.fillStyle='#111';g.fill();g.lineWidth=4;g.strokeStyle='#ffc93c';g.stroke()}}
+$('cutCv').addEventListener('pointerdown',e=>{if(!CUT.info)return;const p=cutXY(e);
+  if(e.button===2){const now=cutNow();const i=CUT.leave.findIndex(([x0,y0,x1,y1,f,t])=>now>=f-0.02&&(t==null||now<=t)&&p[0]>=Math.min(x0,x1)&&p[0]<=Math.max(x0,x1)&&p[1]>=Math.min(y0,y1)&&p[1]<=Math.max(y0,y1));
+    if(i>=0){CUT.leave.splice(i,1);cutDraw()}return}
+  if(CUT.tool==='click'){CUT.click=p.map(Math.round);CUT.at=Math.max(0,$('cutVid').currentTime-CUT.info.start);cutDraw();return}
+  CUT.drag=[p[0],p[1],p[0],p[1]];$('cutCv').setPointerCapture(e.pointerId)});
+$('cutCv').addEventListener('pointermove',e=>{if(!CUT.drag)return;const p=cutXY(e);CUT.drag[2]=p[0];CUT.drag[3]=p[1];cutDraw()});
+$('cutCv').addEventListener('pointerup',()=>{if(!CUT.drag)return;const[x0,y0,x1,y1]=CUT.drag;CUT.drag=null;
+  if(Math.abs(x1-x0)>8&&Math.abs(y1-y0)>8)CUT.leave.push([Math.min(x0,x1),Math.min(y0,y1),Math.max(x0,x1),Math.max(y0,y1)].map(Math.round).concat([cutNow()<0.25?0:+cutNow().toFixed(2),null]));cutDraw()});
+function cutNow(){return Math.max(0,$('cutVid').currentTime-CUT.info.start)}
+function cutBoxList(){const t=CUT.info?cutNow():0;
+  $('cutBoxes').innerHTML=CUT.leave.map((b,i)=>`<div class="row" style="gap:8px"><span style="color:#ff6b6b">&#9632;</span> Box ${i+1}: ${mmss(b[4])} to ${b[5]==null?'the end':mmss(b[5])}
+    ${t>b[4]?`<button class="link" data-end="${i}">End it here (${mmss(t)})</button>`:''}<button class="link" data-del="${i}">Remove</button></div>`).join('');
+  $('cutBoxes').querySelectorAll('[data-end]').forEach(x=>x.onclick=()=>{CUT.leave[+x.dataset.end][5]=+cutNow().toFixed(2);cutDraw()});
+  $('cutBoxes').querySelectorAll('[data-del]').forEach(x=>x.onclick=()=>{CUT.leave.splice(+x.dataset.del,1);cutDraw()})}
+$('cutCv').addEventListener('contextmenu',e=>e.preventDefault());
+window.addEventListener('resize',cutDraw);
+document.querySelectorAll('#cutTool button').forEach(b=>b.onclick=()=>{CUT.tool=b.dataset.v;document.querySelectorAll('#cutTool button').forEach(x=>x.classList.toggle('on',x===b))});
+$('cutClear').onclick=()=>{CUT.leave=[];cutDraw()};
+$('cutScrub').oninput=()=>{if(!CUT.info)return;const t=CUT.info.start+(CUT.info.end-CUT.info.start)*$('cutScrub').value/1000;
+  $('cutVid').currentTime=Math.min(CUT.info.end-0.05,t);$('cutT').textContent=mmss(t-CUT.info.start)};
+function cutOpts(){const o={what:CUT.opt.what,method:CUT.opt.method,edges:CUT.opt.edges,click:CUT.click,at:CUT.at,leave_out:CUT.leave,
+  make:[$('cutMov').checked&&'mov',$('cutGreen').checked&&'green',$('cutPng').checked&&'png'].filter(Boolean),key_strength:+$('cutKeyStr').value};
+  if(CUT.opt.method==='key'&&!$('cutKeyAuto').checked){const h=$('cutKeyCol').value;o.key_color=[1,3,5].map(i=>parseInt(h.substr(i,2),16))}
+  return o}
+async function cutRun(preview){if(!CUT.spec)return;const o=cutOpts();
+  if(!CUT.click&&(CUT.opt.method==='follow'||CUT.opt.what==='head')){toast('Click on Peanut first (on his shell), so it knows what to keep.');return}
+  if(!preview&&!o.make.length){toast('Tick at least one thing to make.');return}
+  if(preview)o.at=Math.max(0,$('cutVid').currentTime-CUT.info.start);
+  const r=await api('/api/run',{kind:'roto',spec:CUT.spec,opts:o,preview}).catch(()=>null);if(!r)return;lastJobKey='running';CUT.preview=preview;
+  toast(r.queued?'<b>In line:</b> starts when the current job finishes.':preview?'<b>Making a 3-second preview...</b>':'<b>Cutting out Peanut...</b> progress shows on the Make Shorts tab.');poll()}
+$('cutPrevBtn').onclick=()=>cutRun(true);$('cutGo').onclick=()=>cutRun(false);
+async function cutFinished(j){if(!j.ok)return;const last=await api('/api/cut_last').catch(()=>null);if(!last)return;
+  if(last.preview){const v=$('cutPrev');v.pause();v.src='/cut_preview?t='+Date.now();$('cutPrevBox').style.display='';return}
+  const folder=(last.outs[0]||'').replace(/[\\/][^\\/]*$/,'');
+  $('cutDone').style.display='';$('cutDone').innerHTML=`<b>Done:</b> ${last.outs.map(f=>esc(f.split(/[\\/]/).pop())).join(', ')} <button class="link" id="cutOpenF">Open folder</button>`;
+  $('cutOpenF').onclick=()=>api('/api/open_folder',{path:folder});
+  toast(`<b>${esc(j.label)}</b><br><button class="link" onclick="api('/api/open_folder',{path:'${esc(folder.replace(/\\/g,'\\\\'))}'})">Open folder</button>`)}
+async function cutUpload(f){if(!f)return;try{await api('/api/video_upload_check',{name:f.name,size:f.size})}catch(e){return}
+  $('cutUpMsg').innerHTML=`Uploading <b>${esc(f.name)}</b>...`;
+  const x=new XMLHttpRequest();x.upload.onprogress=ev=>{if(ev.lengthComputable)$('cutUpMsg').innerHTML=`Uploading <b>${esc(f.name)}</b> (${upSize(f.size)}), ${Math.floor(ev.loaded/ev.total*100)}%`};
+  x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch(e){}if(x.status!==200||!j.name){$('cutUpMsg').textContent='';toast(esc(j.error||'The upload didn\'t work.'));return}
+    cutOpen({type:'upload',name:j.name})};
+  x.onerror=()=>{$('cutUpMsg').textContent='';toast('The upload stopped. Try again.')};
+  x.open('POST','/api/cut_upload?name='+encodeURIComponent(f.name));x.send(f)}
+$('cutPickFile').onclick=()=>$('cutFile').click();$('cutFile').onchange=e=>{cutUpload(e.target.files[0]);e.target.value=''};
+const cutCard=$('cutSrcCard');cutCard.addEventListener('dragover',e=>{e.preventDefault();cutCard.classList.add('over')});
+cutCard.addEventListener('dragleave',e=>{if(!cutCard.contains(e.relatedTarget))cutCard.classList.remove('over')});
+cutCard.addEventListener('drop',e=>{e.preventDefault();cutCard.classList.remove('over');cutUpload(e.dataTransfer.files[0])});
+cutDrawOpts();
+
 // intro / outro / music + chapters
 async function edMediaLoad(){try{ED.media=(await api('/api/editor_media')).items}catch(e){ED.media=[]}edMediaDraw()}
 function edMediaDraw(){if(!CMP)return;const vids=ED.media.filter(x=>x.kind==='video'),mus=ED.media.filter(x=>x.kind==='music');
@@ -1443,7 +1580,7 @@ async function loadClips(){
       <div class="b"><input type="text" value="${esc(c.title)}">
       <div class="chips"><span class="chip s">score ${c.score}</span><span class="chip">${c.length}s</span>${c.reasons.map(r=>`<span class="chip">${esc(r)}</span>`).join('')}</div>
       ${streamLine(c)}
-      <div class="act"><button class="btn ed">&#9986; Edit</button><button class="btn ok">Approve</button><button class="btn no">Reject</button>${colButton(c)}${edButton(c)}<button class="btn tcbtn" style="flex-basis:100%">Title card</button></div></div>`;
+      <div class="act"><button class="btn ed">&#9986; Edit</button><button class="btn ok">Approve</button><button class="btn no">Reject</button>${colButton(c)}${edButton(c)}<button class="btn tcbtn" style="flex-basis:100%">Title card</button><button class="btn cutbtn" style="flex-basis:100%" data-job="${esc(c.job)}" data-id="${esc(c.id)}">Cut out Peanut</button></div></div>`;
     const send=async st=>{await api('/api/decide',{job:c.job,id:c.id,status:st,title:el.querySelector('input').value});el.remove();poll();
       if(!grid.querySelector('.clip'))grid.innerHTML='<div class="empty" style="grid-column:1/-1">All done. Head to Upload to schedule the approved ones.</div>'};
     el.querySelector('.ok').onclick=()=>send('approved');el.querySelector('.no').onclick=()=>send('rejected');

@@ -1,5 +1,14 @@
 # What's new
 
+## 1.19.0
+- Cut out Peanut: a new Cut-out tab takes Peanut off the gameplay behind him, frame by frame, on your PC. Open it with the Cut out Peanut button on a Short in Review, on a part in the Compilations editor, or drop any video on the tab.
+- Whole Peanut or Head only: Whole Peanut keeps everything the stream shows of him (head, glasses, lips, shirt, jacket). Head only keeps the shell with the glasses and lips, ending at the neck.
+- Three methods: Follow Peanut (click him once and only he is kept, so gameplay, the map and banners stay out), Person matting (everything person-like), and Colour key (for green screen or flat backgrounds).
+- Leave-out boxes: drag a red box over a banner to keep it out. A box counts from where you draw it, and you can end it at any time (handy when a Short zooms and the banner moves).
+- Shorts open on their stream when it's still on your PC (no banners, cleaner cut-out), or pick The Short instead.
+- Makes a transparent video for Premiere (.mov, ProRes 4444), a green-screen video (.mp4) and/or PNG frames, in Exports\Cut-outs. Preview 3 s first to check it.
+- The first time, it downloads the cut-out engine and models (about 40 MB). It uses your graphics card when it can.
+
 ## 1.18.0
 - Add to editor: every Short in Review now has an Add to editor button. Pick a compilation (or + New compilation...) and the Short goes at the end of its timeline, wide (16:9) with 5 seconds extra on each side. If the stream was already cleaned up, the vertical Short goes in with blurred sides.
 - The button then shows which compilations the Short is in ("In editor: ...").
